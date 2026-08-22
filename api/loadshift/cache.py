@@ -2,7 +2,7 @@
 
 Requests NEVER trigger this; APScheduler calls refresh() hourly. On any
 upstream failure the last-known-good payload keeps being served with
-stale=true — never an error page.
+stale=true â€” never an error page.
 """
 from __future__ import annotations
 
@@ -33,7 +33,7 @@ def _recent_frame(hours: int = 240) -> pd.DataFrame:
     # The yearly files update once a day; extend to the current hour with the
     # hourly GenOutputCapability live feed. Demand for those hours is estimated
     # as total generation x recent demand/generation ratio (stated approximation
-    # � Ontario exports mean generation > demand).
+    # — Ontario exports mean generation > demand).
     try:
         live = ieso.live_generator_output()
         live = live[live.index > df.index.max()]
@@ -90,7 +90,7 @@ def _build_payload() -> dict:
     card = json.loads((model.ARTIFACTS / "model_card.json").read_text())
     mae = card["mae_model"]
 
-    # Average intensity forecast: seasonal naive (same hour yesterday) — for
+    # Average intensity forecast: seasonal naive (same hour yesterday) â€” for
     # the avg-vs-marginal comparison line only, labelled as an estimate.
     avg_naive = lagged(recent["avg_intensity"], 24)
 
