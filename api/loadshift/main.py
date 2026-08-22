@@ -35,12 +35,21 @@ TICK_IDLE_S = 300
 
 
 def _payload_age_s(p: dict | None) -> float | None:
+    """Seconds since this payload was generated, or None if there is no payload
+    or its timestamp is unreadable. Guarded because /api/health is Render's
+    health check: a malformed payload must not fail an instance's own deploy."""
     if not p:
         return None
     try:
         return (pd.Timestamp.utcnow() - pd.Timestamp(p["generated_at"])).total_seconds()
     except (KeyError, ValueError):
         return None
+
+
+def _cache_age_s(p: dict | None) -> int | None:
+    """The same age, rounded for JSON responses."""
+    age = _payload_age_s(p)
+    return None if age is None else round(age)
 
 
 def cron_is_healthy() -> bool:
@@ -175,13 +184,6 @@ def _failed(e: insights.InsightsError, remaining: int | None) -> JSONResponse:
     )
 
 
-def _cache_age_s(p: dict | None) -> int | None:
-    if not p:
-        return None
-    age = (pd.Timestamp.utcnow() - pd.Timestamp(p["generated_at"])).total_seconds()
-    return round(age)
-
-
 @app.get("/api/health")
 def health():
     """Liveness. Always 200 on purpose — this is Render's healthCheckPath, and
@@ -280,10 +282,10 @@ class ScheduleReq(BaseModel):
 
 @app.post("/api/schedule")
 def schedule(req: ScheduleReq):
-    try:
-        series = cache.forecast_series()
-    except RuntimeError as e:
-        raise HTTPException(503, str(e)) from e
+    # One cache read for the whole request: the series and the stale flag must
+    # describe the same forecast, and a second read could straddle a refresh.
+    payload = _payload()
+    series = cache.forecast_series(payload)
 
     duration = req.duration_h
     if req.appliance and req.appliance in config.APPLIANCE_DEFAULTS:
@@ -326,7 +328,11 @@ def schedule(req: ScheduleReq):
     # you sleep). Wraparound handled for night-shift schedules.
     constrained = None
     awake = None
-    if req.awake_start is not None and req.awake_end is not None             and req.awake_start != req.awake_end:
+    if (
+        req.awake_start is not None
+        and req.awake_end is not None
+        and req.awake_start != req.awake_end
+    ):
         w, b = req.awake_start % 24, req.awake_end % 24
         local_h = (
             series.index.tz_localize("UTC")
@@ -348,7 +354,7 @@ def schedule(req: ScheduleReq):
         "awake": awake,
         "kwh_range": list(kwh_range),
         "duration_h": duration,
-        "stale": _payload()["stale"],
+        "stale": payload["stale"],
     }
 
 
