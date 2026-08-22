@@ -17,7 +17,7 @@ from . import config, dataset, ieso, mef, model, optimize, weather
 
 CACHE_PATH = Path(__file__).resolve().parents[1] / "data" / "cache_forecast.json"
 _lock = threading.Lock()
-_state: dict = {"payload": None}
+_state: dict = {"payload": None, "last_error": None, "attempts": 0}
 
 
 def _recent_frame(hours: int = 240) -> pd.DataFrame:
@@ -122,20 +122,32 @@ def _build_payload() -> dict:
 
 def refresh() -> bool:
     """Rebuild the cache. Returns True on success; keeps last-good on failure."""
+    with _lock:
+        _state["attempts"] += 1
     try:
         payload = _build_payload()
     except Exception as e:  # noqa: BLE001 - any upstream failure -> serve stale
         print(f"[cache] refresh FAILED, serving stale: {type(e).__name__}: {e}")
         with _lock:
+            # Surfaced on /api/health: a boot that never warms is otherwise
+            # indistinguishable from one still in progress.
+            _state["last_error"] = f"{type(e).__name__}: {e}"[:300]
             if _state["payload"]:
                 _state["payload"]["stale"] = True
         return False
     with _lock:
+        _state["last_error"] = None
         _state["payload"] = payload
         CACHE_PATH.parent.mkdir(exist_ok=True)
         CACHE_PATH.write_text(json.dumps(payload))
     print(f"[cache] refreshed at {payload['generated_at']}")
     return True
+
+
+def diagnostics() -> dict:
+    """Why the cache is empty, for operators. No secrets, no payload."""
+    with _lock:
+        return {"attempts": _state["attempts"], "last_error": _state["last_error"]}
 
 
 def get() -> dict | None:

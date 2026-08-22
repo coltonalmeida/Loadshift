@@ -74,6 +74,7 @@ def health():
         "artifacts_loaded": (model.ARTIFACTS / "model.txt").exists(),
         "cache_age_s": round(age) if age is not None else None,
         "stale": p["stale"] if p else None,
+        **cache.diagnostics(),
     }
 
 
