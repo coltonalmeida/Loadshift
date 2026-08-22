@@ -15,10 +15,20 @@ from pydantic import BaseModel
 from . import cache, config, greenbutton, insights, model, optimize, pricing
 
 
+def _boot_refresh():
+    """Refresh until the first success: a fresh instance has no cache to
+    serve stale, and upstream rate limits (Open-Meteo 429 after repeated
+    deploys) must not leave the site empty for the next hourly tick."""
+    import time as _time
+
+    while not cache.refresh():
+        _time.sleep(120)
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # First refresh in a thread so boot isn't blocked; hourly after that.
-    threading.Thread(target=cache.refresh, daemon=True).start()
+    # Retry-until-first-success in a thread so boot isn't blocked; hourly after.
+    threading.Thread(target=_boot_refresh, daemon=True).start()
     sched = BackgroundScheduler()
     sched.add_job(cache.refresh, "interval", minutes=60, id="refresh")
     sched.start()
