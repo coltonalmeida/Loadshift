@@ -8,11 +8,14 @@ from xml.etree.ElementTree import ParseError as ET_ParseError
 
 import pandas as pd
 from apscheduler.schedulers.background import BackgroundScheduler
-from fastapi import FastAPI, File, Header, HTTPException, UploadFile
+from fastapi import FastAPI, File, Header, HTTPException, Request, UploadFile
+from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
-from . import cache, config, greenbutton, insights, model, optimize, pricing
+from . import (
+    cache, config, greenbutton, insights, model, optimize, pricing, ratelimit,
+)
 
 
 def _boot_refresh():
@@ -61,6 +64,44 @@ def _check_stats(stats: dict) -> None:
         raise HTTPException(422, "stats must be JSON-serializable") from e
     if len(blob) > MAX_STATS_BYTES:
         raise HTTPException(422, "stats payload too large")
+
+
+def _client(request: Request) -> str:
+    """Caller identity for the shared-key budget. Render sets X-Forwarded-For;
+    its first hop is the original client."""
+    fwd = request.headers.get("x-forwarded-for")
+    if fwd:
+        return fwd.split(",")[0].strip()
+    return request.client.host if request.client else "unknown"
+
+
+def _limited(retry_after: int) -> JSONResponse:
+    return JSONResponse(
+        status_code=429,
+        content={
+            "detail": "You have used the questions available on the shared key. "
+                      "Add your own Gemini key to keep going.",
+            "reason": "rate_limited",
+            "remaining": 0,
+        },
+        headers={"Retry-After": str(retry_after)},
+    )
+
+
+def _failed(e: insights.InsightsError, remaining: int | None) -> JSONResponse:
+    """A spent quota is not the same as a broken upstream; say which."""
+    quota = e.reason == "quota"
+    return JSONResponse(
+        status_code=429 if quota else 503,
+        content={
+            "detail": "The shared key is out of quota for now. Add your own "
+                      "Gemini key to keep going."
+            if quota
+            else "Insights are unavailable right now.",
+            "reason": e.reason,
+            "remaining": remaining,
+        },
+    )
 
 
 @app.get("/api/health")
@@ -195,12 +236,30 @@ class StatsReq(BaseModel):
 
 
 @app.post("/api/insights/report")
-def insights_report(req: StatsReq, x_gemini_key: str | None = Header(default=None)):
+def insights_report(
+    req: StatsReq,
+    request: Request,
+    x_gemini_key: str | None = Header(default=None),
+):
     _check_stats(req.stats)
-    rep = insights.report(req.stats, user_key=x_gemini_key)
-    if rep is None:
-        raise HTTPException(503, "insights are unavailable right now")
-    return rep
+    own = bool(x_gemini_key)
+    client = _client(request)
+
+    # A cache hit costs no quota, so it must not cost the visitor an allowance.
+    hit = insights.cached_report(req.stats)
+    if hit is not None:
+        return {**hit, "remaining": None if own else ratelimit.shared.remaining(client)}
+
+    if not own:
+        ok, _, retry = ratelimit.shared.check(client)
+        if not ok:
+            return _limited(retry)
+    try:
+        rep = insights.report(req.stats, user_key=x_gemini_key)
+    except insights.InsightsError as e:
+        return _failed(e, None if own else ratelimit.shared.remaining(client))
+    remaining = None if own else ratelimit.shared.consume(client)
+    return {**rep, "remaining": remaining}
 
 
 class AskReq(BaseModel):
@@ -209,15 +268,36 @@ class AskReq(BaseModel):
 
 
 @app.post("/api/insights/ask")
-def insights_ask(req: AskReq, x_gemini_key: str | None = Header(default=None)):
+def insights_ask(
+    req: AskReq,
+    request: Request,
+    x_gemini_key: str | None = Header(default=None),
+):
     q = req.question.strip()
     if not q or len(q) > 300:
         raise HTTPException(422, "question must be 1-300 characters")
     _check_stats(req.stats)
-    answer = insights.ask(q, req.stats, user_key=x_gemini_key)
-    if answer is None:
-        raise HTTPException(503, "insights are unavailable right now")
-    return {"answer": answer.strip(), "model": insights.MODEL}
+    own = bool(x_gemini_key)
+    client = _client(request)
+
+    hit = insights.cached_ask(q, req.stats)
+    if hit is not None:
+        return {
+            "answer": hit,
+            "model": insights.MODEL,
+            "remaining": None if own else ratelimit.shared.remaining(client),
+        }
+
+    if not own:
+        ok, _, retry = ratelimit.shared.check(client)
+        if not ok:
+            return _limited(retry)
+    try:
+        answer = insights.ask(q, req.stats, user_key=x_gemini_key)
+    except insights.InsightsError as e:
+        return _failed(e, None if own else ratelimit.shared.remaining(client))
+    remaining = None if own else ratelimit.shared.consume(client)
+    return {"answer": answer, "model": insights.MODEL, "remaining": remaining}
 
 
 @app.get("/api/model-card")

@@ -15,6 +15,7 @@ import {
   fetchSample,
   GreenButtonResult,
   hourLabel,
+  RateLimited,
   uploadGreenButton,
 } from "@/lib/api";
 import { useGeminiKey } from "@/lib/geminiKey";
@@ -81,6 +82,7 @@ export default function DataSection() {
   const [apiKey, setApiKey] = useGeminiKey();
   const [keyDraft, setKeyDraft] = useState("");
   const [keyOpen, setKeyOpen] = useState(false);
+  const [remaining, setRemaining] = useState<number | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
   async function withBusy(fn: () => Promise<GreenButtonResult>) {
@@ -108,11 +110,17 @@ export default function DataSection() {
       }
       setReportState("loading");
       try {
-        setReport(await fetchAiReport(stats, key || undefined));
+        const r = await fetchAiReport(stats, key || undefined);
+        setReport(r);
+        setRemaining(r.remaining);
         setReportState("idle");
-      } catch {
+      } catch (e) {
         setReport(null);
         setReportState("failed");
+        if (e instanceof RateLimited) {
+          setRemaining(0);
+          setKeyOpen(true);
+        }
       }
     },
     []
@@ -127,9 +135,17 @@ export default function DataSection() {
     setAsking(true);
     setAnswer(null);
     try {
-      setAnswer(await askInsights(question.trim(), result, apiKey || undefined));
-    } catch {
-      setAnswer("Insights are unavailable right now. The numbers above still stand.");
+      const r = await askInsights(question.trim(), result, apiKey || undefined);
+      setAnswer(r.answer);
+      setRemaining(r.remaining);
+    } catch (e) {
+      if (e instanceof RateLimited) {
+        setAnswer(e.detail);
+        setRemaining(0);
+        setKeyOpen(true);
+      } else {
+        setAnswer("Insights are unavailable right now. The numbers above still stand.");
+      }
     } finally {
       setAsking(false);
     }
@@ -139,6 +155,15 @@ export default function DataSection() {
     setApiKey(keyDraft);
     setKeyDraft("");
   }
+
+  // Stated before they hit the wall, not after.
+  const allowance = apiKey
+    ? "Running on your own key, so there is no shared limit."
+    : remaining === null
+    ? null
+    : remaining > 0
+    ? `Shared key: about ${remaining} question${remaining === 1 ? "" : "s"} left. Add your own key below for more.`
+    : "The shared key is used up. Add your own key below to keep asking.";
 
   const timingPct = result ? Math.round(Math.abs(result.timing_score - 1) * 100) : 0;
   const uloCheaper = result ? result.cost_ulo < result.cost_tou : false;
@@ -364,6 +389,11 @@ export default function DataSection() {
                   {asking ? "Thinking…" : "Ask"}
                 </button>
               </div>
+              {allowance && (
+                <p className="mt-2 text-[11px] leading-relaxed text-ink-3">
+                  {allowance}
+                </p>
+              )}
               {answer && (
                 <p className="mt-3 max-w-[72ch] whitespace-pre-line rounded-md bg-ground p-3 text-sm leading-relaxed text-ink-2">
                   {answer}
@@ -411,10 +441,8 @@ export default function DataSection() {
                     )}
                   </div>
                   <p className="mt-2 max-w-[72ch] text-[11px] leading-relaxed text-ink-3">
-                    Kept in this browser only. It rides along with your report and
-                    follow-up requests so they run on your quota, and is never
-                    written to our server or its logs. A free key takes a minute at
-                    aistudio.google.com/apikey.
+                    API keys are never written to our server or its logs. A free
+                    key takes a minute at aistudio.google.com/apikey
                   </p>
                 </div>
               )}

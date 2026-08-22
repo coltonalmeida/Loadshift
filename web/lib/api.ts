@@ -50,6 +50,22 @@ export interface AiReport {
   summary: string;
   recommendations: string[];
   model: string;
+  /** Questions left on the shared key, or null when the caller brought a key. */
+  remaining: number | null;
+}
+
+export interface AskResult {
+  answer: string;
+  remaining: number | null;
+}
+
+/** The shared key is spent or the caller used up their allowance. Distinct from
+ *  a generic failure because the UI answers it differently: offer a key. */
+export class RateLimited extends Error {
+  constructor(public detail: string) {
+    super(detail);
+    this.name = "RateLimited";
+  }
 }
 
 export interface GreenButtonResult {
@@ -136,6 +152,10 @@ export async function fetchAiReport(
     headers: { "Content-Type": "application/json", ...keyHeader(key) },
     body: JSON.stringify({ stats }),
   });
+  if (r.status === 429) {
+    const d = await r.json().catch(() => null);
+    throw new RateLimited(d?.detail ?? "Shared key limit reached.");
+  }
   if (!r.ok) throw new Error("report unavailable");
   return r.json();
 }
@@ -144,15 +164,19 @@ export async function askInsights(
   question: string,
   stats: GreenButtonResult,
   key?: string
-): Promise<string> {
+): Promise<AskResult> {
   const r = await fetch(`${BASE}/api/insights/ask`, {
     method: "POST",
     headers: { "Content-Type": "application/json", ...keyHeader(key) },
     body: JSON.stringify({ question, stats }),
   });
+  if (r.status === 429) {
+    const d = await r.json().catch(() => null);
+    throw new RateLimited(d?.detail ?? "Shared key limit reached.");
+  }
   if (!r.ok) throw new Error("insights unavailable");
   const d = await r.json();
-  return d.answer as string;
+  return { answer: d.answer as string, remaining: d.remaining ?? null };
 }
 
 export async function uploadGreenButton(file: File): Promise<GreenButtonResult> {

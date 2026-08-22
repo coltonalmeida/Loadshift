@@ -60,3 +60,43 @@ def test_pricing_ulo():
     assert pricing.rate_cents(pd.Timestamp("2026-08-20 06:00"), "ulo") == 3.9
     # weekday 18:00 local -> ULO on-peak
     assert pricing.rate_cents(pd.Timestamp("2026-08-20 22:00"), "ulo") == 39.1
+
+
+def test_limiter_allowance_and_recovery():
+    """A client gets its stated allowance, then 429s until the window lapses."""
+    from loadshift.ratelimit import Limiter
+
+    lim = Limiter(per_client=3, window_s=600, daily=100)
+    seen = []
+    for _ in range(3):
+        ok, _remaining, _retry = lim.check("1.2.3.4")
+        assert ok
+        seen.append(lim.consume("1.2.3.4"))
+    assert seen == [2, 1, 0]
+
+    ok, remaining, retry = lim.check("1.2.3.4")
+    assert not ok and remaining == 0 and retry > 0
+
+    # A different caller is unaffected: the budget is per client, not global.
+    ok, remaining, _ = lim.check("5.6.7.8")
+    assert ok and remaining == 3
+
+
+def test_limiter_daily_cap_spans_clients():
+    from loadshift.ratelimit import Limiter
+
+    lim = Limiter(per_client=10, window_s=600, daily=2)
+    lim.consume("a")
+    lim.consume("b")
+    ok, remaining, retry = lim.check("c")
+    assert not ok and remaining == 0 and retry > 0
+
+
+def test_limiter_check_does_not_consume():
+    """Cache hits call check/remaining; neither may spend the allowance."""
+    from loadshift.ratelimit import Limiter
+
+    lim = Limiter(per_client=2, window_s=600, daily=100)
+    for _ in range(5):
+        assert lim.check("x")[0] is True
+        assert lim.remaining("x") == 2

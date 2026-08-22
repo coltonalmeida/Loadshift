@@ -19,12 +19,10 @@ from collections import OrderedDict, deque
 
 import requests
 
-MODEL = "gemini-3.6-flash"
+MODEL = "gemini-3.5-flash-lite"
 URL = f"https://generativelanguage.googleapis.com/v1beta/models/{MODEL}:generateContent"
-TIMEOUT_S = 25
-
-# Light global rate limit so a demo page can't burn the shared free tier.
-_calls: deque[float] = deque(maxlen=30)
+# Calls land in ~1.4s; a longer wait is a dead call holding a worker, not a slow one.
+TIMEOUT_S = 12
 
 # Identical stats reuse a report. The bundled sample is byte-identical on every
 # load, so only the first visitor pays the latency and the quota.
@@ -40,14 +38,15 @@ def available() -> bool:
     return bool(os.environ.get("GEMINI_API_KEY"))
 
 
-def _allowed() -> bool:
-    now = time.time()
-    while _calls and now - _calls[0] > 60:
-        _calls.popleft()
-    if len(_calls) >= 20:
-        return False
-    _calls.append(now)
-    return True
+class InsightsError(Exception):
+    """Why generation failed, so the caller can answer honestly.
+
+    reason: no_key | quota | upstream | malformed
+    """
+
+    def __init__(self, reason: str) -> None:
+        super().__init__(reason)
+        self.reason = reason
 
 
 def _scrub(msg: str) -> str:
@@ -55,18 +54,15 @@ def _scrub(msg: str) -> str:
     return _KEY_RE.sub("<key>", msg)
 
 
-def _generate(prompt: str, json_mode: bool, user_key: str | None = None) -> str | None:
+def _generate(prompt: str, json_mode: bool, user_key: str | None = None) -> str:
     key = user_key or os.environ.get("GEMINI_API_KEY")
     if not key:
-        return None
-    # Someone spending their own key is not competing for our shared quota.
-    if not user_key and not _allowed():
-        return None
-    body: dict = {
-        "contents": [{"parts": [{"text": prompt}]}],
-        # low thinking budget: these are small grounded summaries, speed matters
-        "generationConfig": {"thinkingConfig": {"thinkingBudget": 128}},
-    }
+        raise InsightsError("no_key")
+    # No thinkingConfig on purpose. This model defaults to no thinking (measured
+    # 0 thought tokens, ~1.4s); an explicit thinkingBudget of 0 is rejected 400,
+    # and the old gemini-3.6-flash ignored a budget of 128 and spent 674 thought
+    # tokens over 15s. Do not reinstate it without re-measuring.
+    body: dict = {"contents": [{"parts": [{"text": prompt}]}], "generationConfig": {}}
     if json_mode:
         body["generationConfig"]["response_mime_type"] = "application/json"
     try:
@@ -75,11 +71,15 @@ def _generate(prompt: str, json_mode: bool, user_key: str | None = None) -> str 
         r = requests.post(
             URL, headers={"x-goog-api-key": key}, json=body, timeout=TIMEOUT_S
         )
+        if r.status_code == 429:
+            raise InsightsError("quota")
         r.raise_for_status()
         return r.json()["candidates"][0]["content"]["parts"][0]["text"]
+    except InsightsError:
+        raise
     except Exception as e:  # noqa: BLE001 - degrade to no card, never an error
         print(f"[insights] generation failed: {type(e).__name__}: {_scrub(str(e))}")
-        return None
+        raise InsightsError("upstream") from e
 
 
 def _slim(stats: dict) -> dict:
@@ -110,6 +110,7 @@ Rules:
   this household (appliance timing, rate-plan choice, habits). If cost_ulo is
   well below cost_tou, one recommendation should mention the Ultra-Low
   Overnight plan.
+- Write money as $1,234.56 and shares as 12.3%. Never spell either out.
 - No exclamation marks. No em dashes.
 
 Household stats JSON:
@@ -117,21 +118,43 @@ Household stats JSON:
 """
 
 
-def report(stats: dict, user_key: str | None = None) -> dict | None:
-    """Personalized report from analysis stats, or None."""
-    slim = _slim(stats)
-    digest = hashlib.sha256(
-        json.dumps(slim, sort_keys=True, default=str).encode()
-    ).hexdigest()
-    hit = _cache.get(digest)
+def _digest(*parts: str) -> str:
+    return hashlib.sha256(json.dumps(parts).encode()).hexdigest()
+
+
+def _cached(key: str):
+    hit = _cache.get(key)
     if hit is not None:
-        _cache.move_to_end(digest)
+        _cache.move_to_end(key)
+    return hit
+
+
+def _store(key: str, value):
+    _cache[key] = value
+    if len(_cache) > _CACHE_MAX:
+        _cache.popitem(last=False)
+    return value
+
+
+def report_key(stats: dict) -> str:
+    """Cache key for a report, so callers can test for a hit without paying."""
+    return _digest("report", json.dumps(_slim(stats), sort_keys=True, default=str))
+
+
+def cached_report(stats: dict) -> dict | None:
+    return _cached(report_key(stats))
+
+
+def report(stats: dict, user_key: str | None = None) -> dict:
+    """Personalized report from analysis stats. Raises InsightsError."""
+    slim = _slim(stats)
+    digest = report_key(stats)
+    hit = _cached(digest)
+    if hit is not None:
         return hit
 
     text = _generate(REPORT_PROMPT.format(stats=_dumps(slim)), json_mode=True,
                      user_key=user_key)
-    if not text:
-        return None
     try:
         parsed = json.loads(text)
         out = {
@@ -139,13 +162,10 @@ def report(stats: dict, user_key: str | None = None) -> dict | None:
             "recommendations": [str(r) for r in list(parsed["recommendations"])[:3]],
             "model": MODEL,
         }
-    except Exception:  # noqa: BLE001
-        return None
+    except Exception as e:  # noqa: BLE001
+        raise InsightsError("malformed") from e
 
-    _cache[digest] = out
-    if len(_cache) > _CACHE_MAX:
-        _cache.popitem(last=False)
-    return out
+    return _store(digest, out)
 
 
 ASK_PROMPT = """You are the analysis layer of Loadshift, a tool that helps
@@ -157,6 +177,7 @@ Rules:
   say so briefly and suggest what could.
 - At most 110 words. Plain language, second person. No exclamation marks.
   No em dashes.
+- Write money as $1,234.56 and shares as 12.3%. Never spell either out.
 - Context you may use: Ontario time-of-use rates are 9.8/15.7/20.3 cents per
   kWh; the Ultra-Low Overnight plan is 3.9 cents from 11 PM to 7 AM but 39.1
   cents on weekdays 4 PM to 9 PM. Marginal grid emissions in Ontario are
@@ -169,9 +190,27 @@ Question: {question}
 """
 
 
-def ask(question: str, stats: dict, user_key: str | None = None) -> str | None:
-    return _generate(
+def ask_key(question: str, stats: dict) -> str:
+    return _digest(
+        "ask",
+        question[:300],
+        json.dumps(_slim(stats), sort_keys=True, default=str),
+    )
+
+
+def cached_ask(question: str, stats: dict) -> str | None:
+    return _cached(ask_key(question, stats))
+
+
+def ask(question: str, stats: dict, user_key: str | None = None) -> str:
+    """Answer a follow-up. Raises InsightsError. Repeat questions are free."""
+    digest = ask_key(question, stats)
+    hit = _cached(digest)
+    if hit is not None:
+        return hit
+    answer = _generate(
         ASK_PROMPT.format(stats=_dumps(_slim(stats)), question=question[:300]),
         json_mode=False,
         user_key=user_key,
     )
+    return _store(digest, answer.strip())
