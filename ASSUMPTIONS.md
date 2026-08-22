@@ -43,8 +43,12 @@ have you find them.
 10. **Percent savings is the headline because it is appliance-independent** —
     the kWh cancels. Absolute grams use NRCan EnerGuide typical ranges unless
     you enter nameplate watts or upload Green Button data.
-11. **Green Button "if shifted" assumes 30% of each day's load is deferrable**
+11. **Wake/bed scheduling constrains the START hour only.** You must be awake
+    to start a load; it may finish while you sleep (a dishwasher started at
+    10 PM is fine). Savings are always quoted against the unconstrained worst
+    window — the "whenever it's convenient" default we're trying to beat.
+12. **Green Button "if shifted" assumes 30% of each day's load is deferrable**
     and moves into that day's cleanest 4-hour window. Your deferrable share
     may differ; the assumption is printed next to every result.
-12. **The bundled sample file is synthetic** (a realistic Ontario household
+13. **The bundled sample files are synthetic** (a realistic Ontario household
     profile) so the demo works without anyone's personal meter data.

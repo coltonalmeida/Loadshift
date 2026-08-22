@@ -69,8 +69,8 @@ class ScheduleReq(BaseModel):
     kwh: float | None = None           # exact energy per run, overrides range
     watts: float | None = None         # nameplate power, overrides range
     duration_h: int = 1
-    earliest: str | None = None        # ISO UTC bounds, optional
-    latest: str | None = None
+    awake_start: int | None = None     # local hour you wake (0-23)
+    awake_end: int | None = None       # local hour you go to bed (0-23)
 
 
 @app.post("/api/schedule")
@@ -93,23 +93,46 @@ def schedule(req: ScheduleReq):
     elif req.kwh:
         kwh_range = (req.kwh, req.kwh)
 
+    def window_payload(res: dict) -> dict:
+        lo, hi = optimize.grams_saved(res, kwh_range)
+        return {
+            "best_start": res["best_start"].isoformat() + "Z",
+            "best_gco2_kwh": res["best_gco2_kwh"],
+            "worst_start": res["worst_start"].isoformat() + "Z",
+            "worst_gco2_kwh": res["worst_gco2_kwh"],
+            "pct_saving": res["pct_saving"],
+            "g_saved_range": [lo, hi],
+        }
+
     try:
-        res = optimize.best_window(
-            series, duration,
-            earliest=pd.Timestamp(req.earliest) if req.earliest else None,
-            latest=pd.Timestamp(req.latest) if req.latest else None,
-        )
+        overall = optimize.best_window(series, duration)
     except ValueError as e:
         raise HTTPException(422, str(e)) from e
 
-    lo, hi = optimize.grams_saved(res, kwh_range)
+    # Awake constraint: a run must START while you're up (it may finish while
+    # you sleep). Wraparound handled for night-shift schedules.
+    constrained = None
+    awake = None
+    if req.awake_start is not None and req.awake_end is not None             and req.awake_start != req.awake_end:
+        w, b = req.awake_start % 24, req.awake_end % 24
+        local_h = (
+            series.index.tz_localize("UTC")
+            .tz_convert(config.TIMEZONE)
+            .hour
+        )
+        mask = (local_h >= w) & (local_h < b) if w < b else (local_h >= w) | (local_h < b)
+        try:
+            constrained = window_payload(
+                optimize.best_window(series, duration, allowed_starts=series.index[mask])
+            )
+        except ValueError as e:
+            raise HTTPException(422, str(e)) from e
+        awake = [w, b]
+
     return {
-        "best_start": res["best_start"].isoformat() + "Z",
-        "best_gco2_kwh": res["best_gco2_kwh"],
-        "worst_start": res["worst_start"].isoformat() + "Z",
-        "worst_gco2_kwh": res["worst_gco2_kwh"],
-        "pct_saving": res["pct_saving"],
-        "g_saved_range": [lo, hi],
+        "overall": window_payload(overall),
+        "constrained": constrained,
+        "awake": awake,
         "kwh_range": list(kwh_range),
         "duration_h": duration,
         "stale": _payload()["stale"],
