@@ -1,0 +1,498 @@
+% Loadshift -- Ignition Hacks V.7 demo video
+% Three parts: A) what to record, B) what to say, C) the voiceover script.
+% Picture and audio are recorded separately; each fits inside 3:00 on its own.
+% Compiles with plain pdflatex.
+
+\documentclass[10pt]{article}
+
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage[letterpaper,margin=0.85in]{geometry}
+\usepackage{xcolor}
+\usepackage{booktabs}
+\usepackage{longtable}
+\usepackage{array}
+\usepackage{enumitem}
+\usepackage{titlesec}
+\usepackage{parskip}
+
+\definecolor{spruce}{HTML}{1F6F53}
+\definecolor{amber}{HTML}{B4761A}
+\definecolor{ink3}{HTML}{6B7280}
+
+\titleformat{\section}{\large\bfseries\color{spruce}}{\thesection.}{0.5em}{}
+\titleformat{\subsection}{\normalsize\bfseries}{}{0em}{}
+\setlist[itemize]{leftmargin=1.2em,itemsep=1pt,topsep=2pt}
+\setlist[enumerate]{leftmargin=1.4em,itemsep=1pt,topsep=2pt}
+
+\newcommand{\cotwo}{CO\textsubscript{2}}
+\newcommand{\dur}[1]{{\small\ttfamily #1}}
+\newcommand{\prize}[1]{{\small\color{spruce}\textbf{[#1]}}}
+\newcommand{\cut}{{\small\color{amber}\textbf{[cuttable]}}}
+\newcommand{\tc}[1]{{\ttfamily\bfseries #1}}
+
+\newcolumntype{R}[1]{>{\raggedright\arraybackslash}p{#1}}
+
+\begin{document}
+
+\begin{center}
+{\LARGE\bfseries Loadshift --- demo video}\\[3pt]
+{\small Ignition Hacks V.7, Environmental track \quad$\cdot$\quad hard cap \textbf{3:00}}\\[2pt]
+{\small\color{ink3} Targeting: Best Solo Hack \quad$\cdot$\quad Best Use of Render \quad$\cdot$\quad Best Overall}
+\end{center}
+
+\vspace{2pt}
+\hrule
+\vspace{6pt}
+
+\noindent
+\textbf{How to use this.} Part~A is the capture pass --- record it silently, in order,
+and it lands at \textbf{2:52} of footage. Part~B is every claim worth making, ranked, so
+you know what to drop if you run long. Part~C is the voiceover you read over the
+finished cut: \textbf{411 words}, which is \textbf{2:50} of speech at 145 words per
+minute. Picture and audio do not need to line up beat for beat --- they are the same
+length by construction, so you can nudge either one in the edit.
+
+\medskip
+\noindent
+\textbf{Weighting.} Because Best Use of Render is a target, the Render architecture is
+not a closing footnote. It is the single largest block of the voiceover --- a third of
+all the words --- and it gets seven of the twenty-one shots. The ML method is present
+but compressed.
+
+% =====================================================================
+\section{Part A --- The shot list (what to record)}
+
+Record against the \textbf{live site}, \texttt{loadshift-web.onrender.com}, so the URL
+bar is itself evidence the thing is deployed.
+
+\subsection{Before you hit record}
+
+\begin{itemize}
+  \item \textbf{Warm the instance.} Load the site a few minutes early. Render's starter
+        tier cold-starts, and the first paint after a sleep is slow.
+  \item \textbf{Pre-run the sample analysis once.} The generated report is cached in
+        Key Value for 24h, keyed by a hash of the statistics, so running it before the
+        take makes it return fast during the take.
+  \item \textbf{Clean browser profile.} No bookmarks bar, no extensions, no other tabs.
+        Zoom at 100\%.
+  \item \textbf{The page refetches every 5 minutes.} A number can change mid-take. That
+        is not a bug, but keep takes short so it does not change mid-shot.
+  \item Have \texttt{api/samples/demo\_upload\_greenbutton.xml} somewhere obvious for
+        the file dialog.
+\end{itemize}
+
+\subsection{Site footage --- one continuous scroll \hfill \normalfont 1:54}
+
+\begin{longtable}{@{}R{0.4cm} R{3.2cm} R{1.0cm} R{9.4cm}@{}}
+\toprule
+\textbf{\#} & \textbf{Shot} & \textbf{Dur} & \textbf{What to do on screen} \\
+\midrule
+\endhead
+1 & Hero + the two numbers & \dur{12s} &
+Load the page. Hold on the stacked pair: \emph{What your load causes} beside \emph{What
+the news reports}, and the line about an added load being 1.6$\times$ dirtier than the
+average suggests. This frame is the whole thesis --- give it room. \\
+\addlinespace
+2 & Live badge & \dur{5s} &
+Pause on the pulsing green pill: \texttt{Live $\cdot$ Ontario grid $\cdot$ <time>}. It
+proves the data is current, not a screenshot. \\
+\addlinespace
+3 & The Day Band & \dur{10s} &
+The 24-hour strip, colour-scaled by forecast marginal intensity, with the
+\texttt{cleanest} flag above it. Hover two or three cells so the g/kWh tooltip pops.
+Show the dimmed night hours. \\
+\addlinespace
+4 & Live fuel mix & \dur{4s} &
+The monospace row underneath: nuclear / hydro / gas / wind, in MW, right now. \\
+\addlinespace
+5 & Pick the load & \dur{8s} &
+Scroll to \emph{Schedule}. Click Dryer, then EV charge --- the answers recompute. Type a
+nameplate wattage into the optional box. \\
+\addlinespace
+6 & Awake-hours slider & \dur{10s} &
+Drag both thumbs of the wake/bed picker. The day band re-shades and the answers update
+live. Drag it past midnight once so the awake span wraps into two segments. \\
+\addlinespace
+7 & The two answers & \dur{12s} &
+Hold on both cards: \emph{While you're up} and \emph{Best overall $\cdot$ while you
+sleep}. Percent saved, grams, the ``this hour vs the worst hour'' dollar line, the
+km-of-driving equivalent, and the Ultra-Low Overnight note. \\
+\addlinespace
+8 & Markers on the band & \dur{5s} &
+The large day band below, now flagged with \texttt{while you're up} and
+\texttt{overall}. \\
+\addlinespace
+9 & Green Button upload & \dur{8s} &
+Scroll to \emph{Your data}. Click \textbf{Upload Green Button XML} and pick the sample
+from the file dialog. \textbf{Record the dialog} --- it shows this takes a real file,
+not a demo button. \\
+\addlinespace
+10 & The six stat tiles & \dur{10s} &
+Emissions last year, recoverable kg and \%, bill savings, timing score, evening-peak
+share, and the rate-plan verdict. \\
+\addlinespace
+11 & Usage charts & \dur{7s} &
+Both bar charts. Hover one hour and one month so the tooltips appear. \\
+\addlinespace
+12 & Generated report & \dur{10s} &
+The \emph{Your energy report} card with the \texttt{AI-generated $\cdot$ Gemini} chip:
+summary plus numbered recommendations. Then type one follow-up --- ``Why is my evening
+usage a problem?'' --- and show the answer. \\
+\addlinespace
+13 & Model metrics & \dur{8s} &
+\emph{Method} section: forecast error, naive baseline, improvement \%, test $R^2$. These
+are read live from the model card, not typed into the page. \\
+\addlinespace
+14 & Known limitation & \dur{5s} &
+The amber card, computed live from the model artifact: the model covers about 78\% of
+Ontario's extra demand. Putting the weakness on camera counts in your favour, not
+against you. \\
+\bottomrule
+\end{longtable}
+
+\subsection{Architecture and code \hfill \normalfont 0:58 --- screen capture or stills}
+
+\begin{longtable}{@{}R{0.4cm} R{3.2cm} R{1.0cm} R{9.4cm}@{}}
+\toprule
+\textbf{\#} & \textbf{Shot} & \textbf{Dur} & \textbf{What to do on screen} \\
+\midrule
+\endhead
+15 & Render dashboard & \dur{12s} &
+\textbf{The most valuable frame in the whole video.} The Blueprint view with all four
+resources visible together: \texttt{loadshift-web}, \texttt{loadshift-api},
+\texttt{loadshift-refresh}, \texttt{loadshift-cache}. Make sure all four are in one
+screenshot. \\
+\addlinespace
+16 & \texttt{render.yaml} & \dur{10s} &
+Slow scroll past the four \texttt{type:} blocks --- \texttt{keyvalue}, \texttt{web},
+\texttt{cron}, \texttt{web}. Land on the \texttt{fromService} wiring that injects
+\texttt{KV\_URL}, and on \texttt{maxmemoryPolicy: noeviction}. \\
+\addlinespace
+17 & Cron run history & \dur{8s} &
+\texttt{loadshift-refresh} job history: a column of hourly successes at seven past. If
+the log is legible, the line where it publishes the forecast. \\
+\addlinespace
+18 & \texttt{/api/health} & \dur{6s} &
+Raw JSON in a browser tab. The three fields that matter: \texttt{kv\_ok: true},
+\texttt{cache\_backend: render-key-value}, \texttt{refresher: cron}. \\
+\addlinespace
+19 & Architecture diagram & \dur{8s} &
+The topology block from \texttt{DEPLOY.md}: browser $\rightarrow$ web $\rightarrow$ api
+$\rightarrow$ key value $\leftarrow$ cron. Easiest as a still; redraw it if you want it
+prettier. \\
+\addlinespace
+20 & The ML core \cut & \dur{8s} &
+Still or slow scroll: the marginal-emissions regression in
+\texttt{api/loadshift/mef.py}, or the 14-feature list in
+\texttt{api/loadshift/model.py}. \\
+\addlinespace
+21 & Tests passing \cut & \dur{6s} &
+\texttt{pytest tests/ -q} finishing at 63 passed. \\
+\bottomrule
+\end{longtable}
+
+\subsection{Timing}
+
+\begin{tabular}{@{}lr@{}}
+\toprule
+Site footage (shots 1--14) & 1:54 \\
+Architecture and code (shots 15--21) & 0:58 \\
+\midrule
+\textbf{Total} & \textbf{2:52} \\
+Without shots 20--21 & 2:38 \\
+\bottomrule
+\end{tabular}
+
+\medskip
+\noindent\textbf{Drop in this order if you run long:} 21, 20, 4, 8, 11. Never drop 15
+or 16 --- those two are the Render prize. Never drop 1 or 7 --- those two are the
+product. Every duration above is a ceiling, not a target; coming in under is free
+slack for the merge.
+
+% =====================================================================
+\newpage
+\section{Part B --- Talking points (everything worth saying)}
+
+Ranked. Each group is tagged with the prize it serves. Part~C uses the top of this list;
+the rest is here for the Devpost writeup and for judge questions afterwards.
+
+\subsection{1. The thesis \prize{Overall}}
+\begin{itemize}
+  \item Ontario's grid averages around 100 g\cotwo{}/kWh and looks clean --- mostly
+        nuclear and hydro. So ``does it matter when I run the dryer?'' sounds like a
+        non-question here.
+  \item It matters, because the average is the wrong number. Nuclear runs flat no
+        matter what you do. The plant that ramps up to serve one more kWh is almost
+        always natural gas, at roughly 490 g.
+  \item Across the labelled history: mean marginal 227 g against a mean average of
+        103 g. A 2.2$\times$ gap --- the entire thesis in one number.
+  \item And unlike the average, the marginal number swings about 50\% within a single
+        day. That swing is the lever.
+  \item Nobody publishes a marginal forecast for Ontario households, so a lever
+        available to every home on the grid goes unused.
+\end{itemize}
+
+\subsection{2. What it does \prize{Overall}}
+\begin{itemize}
+  \item Forecasts marginal intensity 24 hours ahead and names the cleanest hour to run
+        a deferrable load --- dryer, dishwasher, washer, EV charger.
+  \item \textbf{Two} answers, not one: the best window while you're awake, and the best
+        window overall. You have to be up to start a load, but it can finish while you
+        sleep --- that is what a delay-start timer is for.
+  \item Percent saved is the headline because it is \emph{appliance-independent}: the
+        kWh cancels out, so the number is identical for an efficient dryer and an
+        ancient one. It depends only on the grid. Chasing a precise gram figure for an
+        appliance you cannot see would be fake precision.
+  \item Dollars are costed against the OEB Regulated Price Plan --- both Time-of-Use
+        and Ultra-Low Overnight --- so the tool also tells you whether you are on the
+        wrong rate plan.
+\end{itemize}
+
+\subsection{3. Real meter data \prize{Overall}}
+\begin{itemize}
+  \item Green Button, under O.~Reg.~633/21: every Ontario utility must hand you your
+        own smart-meter interval history. Upload the XML and get a year of analysis.
+  \item The bundled EV household: 9,563 kWh a year, 2,421.81 kg \cotwo{} actual against
+        2,228.02 kg optimally shifted. \textbf{193.79 kg and \$82.93 recoverable purely
+        by moving when the load runs.}
+  \item Also returned: a timing score, the evening-peak share, and a verdict on the
+        rate plan. Files are analysed in memory and never stored.
+  \item A Gemini-generated report reads the statistics back in plain language and
+        answers follow-up questions --- answered \emph{only} from those statistics.
+\end{itemize}
+
+\subsection{4. Method, stated honestly \prize{Overall + Solo}}
+\begin{itemize}
+  \item No public marginal-emissions feed exists for Ontario, so I derived the label:
+        hour-over-hour deltas of each fuel's output and of demand, keeping only hours
+        where demand rose, bucketed by season and hour-block, regressed within
+        overlapping net-demand windows. Following Siler-Evans, Azevedo and Morgan
+        (2012), \emph{Environ.\ Sci.\ Technol.}\ 46(9).
+  \item Marginal intensity is the sum of each fuel's slope times its IPCC AR5 lifecycle
+        emission factor.
+  \item Forecast: LightGBM, 24h ahead, 14 features, every one causal at that horizon
+        --- calendar, forecast weather, and lags of 24h or more. No leakage. 23,112
+        hourly rows, 2.6 years, from 2024-01-01.
+  \item \textbf{I wrote the seasonal-naive baseline first, deliberately, so the result
+        would mean something.} On a chronological 60-day holdout: MAE 13.51 g against
+        23.21 g. 41.8\% better, $R^2$ 0.555. ``13.5 g'' alone means nothing; ``13.5
+        against 23.2'' is a result.
+  \item Externally validated: my independently computed average intensity tracks
+        Electricity Maps' published Ontario figure to within 2.1 g/kWh, bias +1.8 g,
+        correlation 0.91. Validated against them once; never built on them.
+  \item Stated limitation --- first line of the limitations doc and rendered live in the
+        UI: the regression explains about 78\% of a marginal Ontario kWh. The rest is
+        intertie imports and exports, which I do not observe.
+\end{itemize}
+
+\subsection{5. Render --- the headline block \prize{Best Use of Render}}
+\begin{itemize}
+  \item \textbf{Four resources, one Blueprint, one \texttt{git push}.}
+        \texttt{loadshift-web} (Next.js), \texttt{loadshift-api} (FastAPI),
+        \texttt{loadshift-refresh} (hourly cron), \texttt{loadshift-cache} (Key Value,
+        Valkey 8). All declared in \texttt{render.yaml} at the repo root --- infra as
+        code, nothing clicked into the dashboard. \texttt{KV\_URL} is wired by
+        \texttt{fromService}, so no connection string is ever copied by hand.
+  \item \textbf{Private network.} The browser only ever calls the web service's own
+        origin; \texttt{/api/*} is proxied to the API's \emph{private} hostname. No CORS
+        preflight, no \texttt{onrender.com} API URL baked into the frontend bundle, and
+        API traffic never leaves Render's network. It is a route handler rather than a
+        \texttt{next.config} rewrite on purpose --- rewrites freeze at build time, which
+        would mean the API's hostname had to exist before the frontend could build.
+  \item \textbf{The ephemeral-filesystem lesson.} Render containers destroy the disk on
+        every deploy, and I learned that the expensive way. Four things lived in the web
+        container: the forecast cache, the last-known-good weather, the shared Gemini
+        key budget, and the generated-report cache. Ordinary deploys wiped all four ---
+        and the daily API cap was multiplying by the number of running instances. All
+        four now live in Render Key Value, the only tier that survives a deploy. Set to
+        \texttt{noeviction}, because the forecast must never be dropped to make room for
+        a cache entry.
+  \item \textbf{The topology enforces the rule.} The cron job is the only process that
+        ever loads LightGBM. ``Never run the model on a request path'' is therefore
+        enforced by architecture, not by discipline --- the web service \emph{cannot}
+        run the model, because it never imports it. Redeploy the API and the very first
+        request returns a warm forecast.
+  \item \textbf{Liveness is not readiness.} \texttt{/api/health} is the
+        \texttt{healthCheckPath} and always returns 200: an instance still waiting on
+        its first forecast is alive, and failing its own health check would make Render
+        roll back a perfectly good deploy. \texttt{/api/ready} is the readiness probe
+        and 503s when there is genuinely nothing to serve.
+  \item \textbf{The supervisor.} If no refresh job has reported in for two hours, the
+        web service rebuilds the forecast itself and reports
+        \texttt{refresher: web-fallback}. It is a safety net, not a second scheduler ---
+        when the cron is healthy it does nothing. It exists because I once shipped the
+        cron-based code \emph{before} the cron job existed, and the forecast froze and
+        aged silently with nothing scheduled to replace it.
+  \item \textbf{Never an error page.} IESO or the weather API down: last good forecast,
+        flagged stale, with the time it was built. A cron run fails: same. Key Value
+        unreachable: every helper returns \texttt{None}, each service falls back to its
+        in-process path, and health reports
+        \texttt{cache\_backend: in-process (kv unreachable)}. Every failure mode
+        degrades to something a visitor can still use.
+\end{itemize}
+
+\subsection{6. Solo scope \prize{Best Solo Hack}}
+\begin{itemize}
+  \item One person, about 22 hours, roughly 5,400 lines, real smart-meter data working
+        end to end.
+  \item 63 tests across 6 files --- the IESO parsers and hour conventions, TOU and ULO
+        pricing, the weather fallback chain, the insight cache, and a file that
+        deliberately simulates the durable cache being unreachable. One of those test
+        files exists purely because of the outage described above.
+  \item A public 27-item document of everything the project assumes and everything it
+        cannot do. Naming the weaknesses is part of the product.
+  \item No API keys on the main path. Every data source is public and keyless.
+\end{itemize}
+
+\subsection{7. Sharp edges I hit \prize{Solo} \cut}
+\begin{itemize}
+  \item Two IESO XML reports use two different namespaces. Hours are numbered 1--24,
+        not 0--23. Reports use fixed EST year-round, which I only trusted after checking
+        that the daylight-saving transition days have exactly 24 rows. One hour is
+        missing from the record entirely, at the Market Renewal go-live.
+  \item A single cp1252-encoded byte in a Python comment broke the Render build.
+  \item \texttt{Expect: 100-continue} was being rejected on Green Button uploads.
+  \item The insight cache kept missing because Python serialises \texttt{7036.0} where
+        JavaScript sends \texttt{7036}, so identical statistics hashed differently.
+\end{itemize}
+
+\subsection{8. What's next \cut}
+\begin{itemize}
+  \item Model intertie flows and close the 22\% gap; per-plant heat rates instead of
+        IPCC medians for the gas fleet.
+  \item Utility OAuth, so Green Button pulls automatically instead of being uploaded.
+  \item Smart plugs, EV chargers and thermostats, so Loadshift \emph{executes} the shift
+        rather than recommending it.
+  \item Other grid operators --- the method is not Ontario-specific, only the data
+        plumbing is.
+\end{itemize}
+
+% =====================================================================
+\newpage
+\section{Part C --- The voiceover script}
+
+\noindent
+\textbf{411 words.} At 145 words per minute that is \textbf{2:50} of speech; leave the
+remaining ten seconds for the breaths marked below. Read it unhurried --- if you rush
+to fit, it sounds rushed. Two fragments are marked \cut{} and buy back about eight
+seconds if a take runs long.
+
+\medskip
+\noindent
+Numbers are written the way you say them, not the way you would type them. The
+\emph{On screen} line is a hint for the edit, not a hard sync point.
+
+\vspace{4pt}
+\hrule
+\vspace{6pt}
+
+%<vo>
+\subsection{\tc{0:00 -- 0:17} \quad Hook \hfill {\small\color{ink3} 42 words}}
+\emph{On screen: shots 1--2, the hero and the two numbers.}
+
+\medskip
+Ontario's grid looks clean. About a hundred grams of \cotwo{} per kilowatt-hour, mostly
+nuclear and hydro. But the average is the wrong number. Nuclear runs flat. The plant
+that ramps up for your extra load is gas, at four hundred and ninety.
+
+\vspace{8pt}
+\subsection{\tc{0:17 -- 0:38} \quad Now \hfill {\small\color{ink3} 49 words}}
+\emph{On screen: shots 2--4, the live numbers, the day band, the fuel mix.}
+
+\medskip
+Loadshift forecasts that marginal number twenty-four hours ahead. This is right now:
+what your load actually causes, beside what the news reports. An added kilowatt-hour is
+one point six times dirtier than the average suggests. And here's the next twenty-four
+hours as one band --- green is clean, amber isn't.
+
+\vspace{8pt}
+\subsection{\tc{0:38 -- 0:59} \quad Schedule \hfill {\small\color{ink3} 52 words}}
+\emph{On screen: shots 5--8, appliance, slider, the two answer cards.}
+
+\medskip
+Pick a load, set the hours you're awake, and you get two answers: the best window while
+you're up, and the best one overall. Percent saved is the headline, because the
+kilowatt-hours cancel out. It's the same number for a new dryer and a twenty-year-old
+one. The dollars use Ontario's regulated rates.
+
+\vspace{8pt}
+\subsection{\tc{0:59 -- 1:19} \quad Your data \hfill {\small\color{ink3} 47 words}}
+\emph{On screen: shots 9--12, the upload dialog, the tiles, the report.}
+
+\medskip
+This is Green Button data --- the history every Ontario utility must give you. Upload it
+and you get a year back. This household emitted two thousand four hundred kilograms of
+\cotwo{}. Moving the same loads to cleaner hours saves a hundred and ninety-four kilos,
+and eighty-three dollars.
+
+\vspace{8pt}
+\subsection{\tc{1:19 -- 1:40} \quad Method \hfill {\small\color{ink3} 51 words}}
+\emph{On screen: shots 13--14 and 20, the metric tiles and the limitation card.}
+
+\medskip
+Nobody publishes a marginal forecast for Ontario, so I derived one, from hour-over-hour
+fuel deltas on the hours demand rose. Then LightGBM, on twenty-three thousand hours of
+history. I wrote the naive baseline first, deliberately, and the model beats it by
+forty-two percent. \cut{} The page also states what it can't see.
+
+\vspace{8pt}
+\subsection{\tc{1:40 -- 2:38} \quad Render \hfill {\small\color{ink3} 140 words --- the big one}}
+\emph{On screen: shots 15--19 --- dashboard, \texttt{render.yaml}, cron history, health
+JSON, diagram.}
+
+\medskip
+Loadshift is four Render resources in one Blueprint: a Next.js front end, a FastAPI
+service, a Key Value store, and an hourly cron job. One git push deploys all of it.
+
+\medskip
+The browser only ever talks to the web service. Slash-A-P-I is proxied over Render's
+private network, so API traffic never leaves it.
+
+\medskip
+Render's filesystem is ephemeral, and I learned that the hard way --- four caches lived
+on disk, and every deploy destroyed them. They're in Key Value now, the only tier that
+survives a deploy.
+
+\medskip
+And the cron job is the only process that ever loads the model. The web service doesn't
+even import LightGBM, so it can't run the model on a request path. If an upstream fails,
+you get the last good forecast, flagged stale. Nothing here ever shows an error page.
+
+\vspace{8pt}
+\subsection{\tc{2:38 -- 2:50} \quad Close \hfill {\small\color{ink3} 30 words}}
+\emph{On screen: shot 21 if you kept it, then back to the hero.}
+
+\medskip
+Solo build, about twenty-two hours, sixty-three tests, and a public document of
+twenty-seven things it assumes and can't do. Ontario already has the clean hours.
+Loadshift just tells you when.
+%</vo>
+
+\vspace{10pt}
+\hrule
+\vspace{6pt}
+
+\subsection*{Delivery notes}
+\begin{itemize}
+  \item The Render block is four short paragraphs on purpose. Take a real breath between
+        them --- it is the densest thing you say, and the pauses are what make it land.
+  \item Say ``slash-A-P-I'', not ``slash api''.
+  \item ``LightGBM'' is read as ``light G B M''.
+  \item In the hook, the beat is after \emph{wrong number}. Let it sit for half a second
+        before ``Nuclear runs flat''.
+  \item The Gemini report is a visual beat only --- shot 12 shows it while the Your data
+        block is playing, so nothing in the script has to name it.
+  \item If a take runs past 2:55, cut the two \cut{} fragments first.
+\end{itemize}
+
+\subsection*{Number check}
+Every figure quoted here traces to the repo: the model metrics to
+\texttt{api/artifacts/model\_card.json}, the Green Button figures to the bundled sample,
+the architecture to \texttt{render.yaml} and \texttt{DEPLOY.md}. Two numbers are live
+and can move before you record. The metrics in shot 13 are read from the model card, so
+if you retrain, re-check the forty-two percent in the Method block against what the page
+displays. The 1.6$\times$ multiplier in the Now block is whatever the grid is doing at
+that moment --- read the hero before you commit that take.
+
+\end{document}
