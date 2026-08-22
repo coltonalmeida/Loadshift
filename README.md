@@ -1,7 +1,7 @@
 # Loadshift
 
 Loadshift forecasts Ontario's **marginal** carbon intensity 24 hours ahead and
-names the cleanest hour to run a deferrable load — a dryer, a dishwasher, an EV
+names the cleanest hour to run a deferrable load, a dryer, a washing machine, a dishwasher, or even an EV
 charger.
 
 **Live: https://loadshift-web.onrender.com/**
@@ -10,79 +10,7 @@ Built for Ignition Hacks V.7, Environmental track.
 
 ![The live view: marginal intensity beside the average, and the next 24 hours as a colour-scaled band](docs/now.png)
 
-## Why marginal, not average
-
-Ontario's grid averages roughly 103 gCO₂eq/kWh — mostly nuclear and hydro. But
-nuclear runs flat regardless of demand, so the plant that ramps up to serve one
-additional kWh is almost always natural gas at about 490 g. The emissions
-*caused* by an appliance are the marginal intensity, not the average.
-
-Across the labelled history the mean marginal intensity is 227 g against a mean
-average of 103 g — a 2.2× gap. It also moves through the day in a way the
-average does not: hourly mean marginal ranges from 197 g at 6 AM to 271 g at
-8 PM, and individual days swing considerably further. That spread is what makes
-shifting a load worth anything.
-
-No public feed publishes a marginal forecast for Ontario, so Loadshift derives
-one.
-
-## What it does
-
-One scrolling page, four sections.
-
-- **Now** — live marginal intensity beside the average, the multiplier between
-  them, the next 24 hours as a colour-scaled band, and the current fuel mix
-  in MW.
-- **Schedule** — pick an appliance or enter nameplate watts, set the hours
-  you're awake, and get two answers: the best start window while you're up, and
-  the best overall. Savings are reported as percent CO₂ against the worst window
-  the grid offers, plus a gram range and the cost of the run under OEB Regulated
-  Price Plan rates (time-of-use and ultra-low overnight).
-- **Your data** — upload your own Green Button smart-meter XML, which every
-  Ontario utility must provide under O. Reg. 633/21, or use the bundled
-  synthetic sample. Returns a year of actual versus optimally-shifted emissions,
-  bill savings, a timing score, and evening-peak share. Uploads are parsed in
-  memory and never stored.
-- **Method** — the model card, emission factors, and limitations, read from the
-  artifact at runtime rather than hardcoded.
-
-![The scheduler: appliance, waking hours, and the cleanest start window](docs/schedule.png)
-
-## How it works
-
-1. **Ingest** — hourly generation by fuel and Ontario demand from
-   [IESO Public Reports](https://reports-public.ieso.ca/public/) (no key
-   required), joined with Open-Meteo weather at the GTA load centre. 23,112
-   hourly rows from 2024-01-01 onward, about 2.6 years, all normalized to UTC.
-   IESO reports use fixed Eastern Standard Time year-round and number hours
-   1–24; both are handled explicitly and verified against DST transition days.
-2. **Label** — there is no marginal-emissions feed to copy, so one is derived
-   per Siler-Evans, Azevedo & Morgan (2012, *Environ. Sci. Technol.* 46(9)).
-   Within each season × hour-block bucket, regress each fuel's hour-over-hour
-   ramp on the demand ramp across overlapping net-demand windows, using
-   demand-*increase* hours only, then take MEF = Σ(slope_fuel × EF_fuel) with
-   IPCC AR5 lifecycle emission factors.
-3. **Forecast** — LightGBM, 24 hours ahead, 14 features, every one of them
-   causal at that horizon: calendar, forecast weather, and lags of 24h or more.
-   The seasonal-naive baseline was written first so the result would mean
-   something.
-4. **Optimize** — a sliding-window argmin over the forecast for the appliance's
-   run duration. The waking-hours constraint applies to the start hour only, and
-   savings are always quoted against the unconstrained worst window.
-5. **Serve** — an hourly job rebuilds the forecast and publishes it; the web
-   service only reads it. If an upstream feed fails, the last known good
-   forecast keeps being served with a visible `stale` flag and the time it was
-   built, never an error page.
-
-**Result** — on a chronological 60-day holdout, MAE **13.51 g** against
-**23.21 g** for the seasonal-naive baseline: **41.8% better**, R² 0.555.
-
-**External validation** — the independently-computed average intensity tracks
-Electricity Maps' published Ontario figure within **2.1 g/kWh** (bias +1.8 g,
-correlation 0.91) on the same lifecycle emission-factor basis. Their API is used
-once as a cross-check and nothing is built on it.
-
-Assumptions and limitations are stated in [ASSUMPTIONS.md](ASSUMPTIONS.md) — 27
+Assumptions and limitations are stated in [ASSUMPTIONS.md](ASSUMPTIONS.md), 27
 of them, including the largest: intertie flows are unmodelled, so the fuel-slope
 regression explains about 78% of a marginal Ontario kWh.
 
@@ -138,7 +66,7 @@ Only needed to reproduce the artifacts. Run from `api/`:
 ../.venv/Scripts/python scripts/train.py           # -> artifacts/model.txt + model_card.json
 ```
 
-Each script prints its own QA summary — row counts and gaps, bucket fits and
+Each script prints its own QA summary, row counts and gaps, bucket fits and
 monotonicity, model versus baseline MAE.
 
 Two more scripts exist outside the pipeline:
@@ -178,7 +106,7 @@ api/
   loadshift/
     main.py          FastAPI app, endpoints, and the refresh supervisor
     cache.py         builds the forecast payload; three-tier read path
-    refresh_job.py   hourly rebuild entrypoint — the only process that runs the model
+    refresh_job.py   hourly rebuild entrypoint, the only process that runs the model
     mef.py           marginal emissions factor regression
     model.py         LightGBM features, training, and prediction
     optimize.py      sliding-window search for the cleanest run window
@@ -206,13 +134,13 @@ render.yaml                     the four-resource Render Blueprint
 |---|---|
 | `GET /api/now` | Current hour: marginal and average intensity, fuel mix in MW, Ontario demand. |
 | `GET /api/forecast` | The cached 24-hour forecast: marginal, average, and confidence band per hour. |
-| `POST /api/schedule` | Best start window for an appliance — constrained to waking hours, and overall. |
+| `POST /api/schedule` | Best start window for an appliance, constrained to waking hours, and overall. |
 | `POST /api/greenbutton` | Upload Green Button ESPI XML; returns a year of usage and emissions statistics. |
 | `GET /api/greenbutton/sample` | The same statistics for the bundled synthetic file. |
 | `POST /api/insights/report` | Plain-language report generated from those statistics. |
 | `POST /api/insights/ask` | Follow-up question, answered only from those statistics. |
 | `GET /api/model-card` | Model metrics, the MEF method and its stated limitation, emission factors. |
-| `GET /api/health` | Liveness. Always 200 — a warming instance must not fail its own deploy. |
+| `GET /api/health` | Liveness. Always 200, a warming instance must not fail its own deploy. |
 | `GET /api/ready` | Readiness. 503 when there is genuinely no forecast to serve. |
 | `GET /api/platform` | Which service built the forecast being served, when, and on which commit. |
 
@@ -237,21 +165,21 @@ All training happens locally and produces small committed artifacts, so the
 server never trains and never parses a year of XML. A page load cannot trigger a
 forecast rebuild: the cron job publishes to Key Value each hour and the web
 service only reads it, so "never run the model on a request path" holds because
-of the topology — the web service does not import LightGBM at all.
+of the topology, the web service does not import LightGBM at all.
 
 [DEPLOY.md](DEPLOY.md) covers why the split exists, how each failure mode
 degrades, and first-time setup.
 
 ## Data sources
 
-- **IESO Public Reports** — hourly generation by fuel, hourly Ontario demand,
+- **IESO Public Reports**: hourly generation by fuel, hourly Ontario demand,
   and the live per-generator feed. Public, no key.
-- **Open-Meteo** — historical archive for training, forecast for inference. No key.
-- **Green Button (O. Reg. 633/21)** — customer smart-meter interval data,
+- **Open-Meteo**: historical archive for training, forecast for inference. No key.
+- **Green Button (O. Reg. 633/21)**: customer smart-meter interval data,
   supplied by the user.
-- **Emission factors** — IPCC AR5 WGIII Annex III lifecycle medians.
-- **Electricity Maps** — used once to validate, never as a dependency.
+- **Emission factors**: IPCC AR5 WGIII Annex III lifecycle medians.
+- **Electricity Maps**: used once to validate, never as a dependency.
 
 ## License
 
-MIT — see [LICENSE](LICENSE).
+MIT, see [LICENSE](LICENSE).
