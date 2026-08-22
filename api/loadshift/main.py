@@ -80,8 +80,11 @@ def _payload() -> dict:
 
 
 # The insight endpoints take the stats back from the client, so bound them: a
-# prompt is built from this and we pay for every token of it.
-MAX_STATS_BYTES = 20_000
+# prompt is built from this and we pay for every token of it. A real analysis
+# serialises to ~1.3 KB (measured on the bundled sample), so this is 3x headroom
+# rather than the 15x it was — the endpoint accepts client input and every byte
+# above is billable.
+MAX_STATS_BYTES = 4_000
 
 
 def _check_stats(stats: dict) -> None:

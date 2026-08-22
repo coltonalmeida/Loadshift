@@ -24,6 +24,12 @@ URL = f"https://generativelanguage.googleapis.com/v1beta/models/{MODEL}:generate
 # Calls land in ~1.4s; a longer wait is a dead call holding a worker, not a slow one.
 TIMEOUT_S = 12
 
+# The report is a <=90-word summary plus three one-sentence recommendations, and
+# an answer is <=110 words. Nothing legitimate approaches this. It is a stop on
+# runaway generation — the main way one of these calls goes slow — not a target.
+# Do not lower it far: a truncated reply fails JSON parsing as "malformed".
+MAX_OUTPUT_TOKENS = 512
+
 # Identical stats reuse a report. The bundled sample is byte-identical on every
 # load, so only the first visitor pays the latency and the quota.
 #
@@ -68,7 +74,10 @@ def _generate(prompt: str, json_mode: bool, user_key: str | None = None) -> str:
     # 0 thought tokens, ~1.4s); an explicit thinkingBudget of 0 is rejected 400,
     # and the old gemini-3.6-flash ignored a budget of 128 and spent 674 thought
     # tokens over 15s. Do not reinstate it without re-measuring.
-    body: dict = {"contents": [{"parts": [{"text": prompt}]}], "generationConfig": {}}
+    body: dict = {
+        "contents": [{"parts": [{"text": prompt}]}],
+        "generationConfig": {"maxOutputTokens": MAX_OUTPUT_TOKENS},
+    }
     if json_mode:
         body["generationConfig"]["response_mime_type"] = "application/json"
     try:
@@ -88,6 +97,27 @@ def _generate(prompt: str, json_mode: bool, user_key: str | None = None) -> str:
         raise InsightsError("upstream") from e
 
 
+def _canon(v):
+    """Normalise numbers so the same statistics always hash the same way.
+
+    These stats reach us two ways: echoed back by the browser, and computed
+    server-side when the cron pre-warms the sample report. Python writes an
+    integral float as `7036.0` and JavaScript writes it as `7036`, so the two
+    paths would otherwise produce different JSON for identical numbers and miss
+    each other's cache entry. Collapsing integral floats to int makes the digest
+    independent of who serialised it.
+    """
+    if isinstance(v, bool):  # bool is an int subclass; must be checked first
+        return v
+    if isinstance(v, float):
+        return int(v) if v.is_integer() else round(v, 6)
+    if isinstance(v, dict):
+        return {k: _canon(x) for k, x in v.items()}
+    if isinstance(v, list):
+        return [_canon(x) for x in v]
+    return v
+
+
 def _slim(stats: dict) -> dict:
     """Only what the prompts reason over: drops the bulky month/day series and
     any report the client echoed back at us."""
@@ -95,7 +125,7 @@ def _slim(stats: dict) -> dict:
     slim = {k: v for k, v in stats.items() if k not in drop}
     if stats.get("usage_by_hour") is not None:
         slim["usage_by_hour_kwh"] = stats["usage_by_hour"]
-    return slim
+    return _canon(slim)
 
 
 def _dumps(obj: dict) -> str:

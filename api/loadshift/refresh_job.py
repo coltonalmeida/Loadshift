@@ -15,7 +15,7 @@ import os
 import sys
 import time
 
-from . import cache, kv
+from . import cache, greenbutton, insights, kv
 
 ATTEMPTS = 3
 # Open-Meteo 429s on Render's shared egress IP are transient bursts, not an
@@ -33,6 +33,34 @@ def _render_env() -> dict:
     }
 
 
+def warm_sample_report() -> str:
+    """Generate the bundled sample's AI report once, into Key Value.
+
+    "Try sample data" is the path a visitor with no Green Button file of their
+    own takes, and the sample's statistics are byte-identical every time, so its
+    report is a constant. Generating it here means that click is instant, costs
+    no shared-key quota, and cannot be rate-limited at the worst moment.
+
+    Cheap by construction: only on a cache miss, so at most one call per cache
+    lifetime rather than one per hour. Never raises — a failed warm-up must not
+    fail the forecast rebuild that is this job's actual purpose.
+    """
+    if not insights.available():
+        return "skipped (no shared key)"
+    try:
+        kwh = greenbutton.parse(greenbutton.SAMPLE_PATH.read_bytes())
+        # Must match what /api/greenbutton/sample returns and the browser echoes
+        # back, or the digest differs and this warms nothing. `ai_available` is
+        # dropped by _slim(); `sample` is not, so it belongs here.
+        stats = {**greenbutton.analyze(kwh), "sample": True}
+        if insights.cached_report(stats) is not None:
+            return "already cached"
+        insights.report(stats)
+        return "generated"
+    except Exception as e:  # noqa: BLE001 - a warm-up is never worth failing on
+        return f"failed: {type(e).__name__}: {e}"[:120]
+
+
 def run() -> bool:
     started = time.time()
     ok = False
@@ -45,8 +73,12 @@ def run() -> bool:
             print(f"[refresh_job] attempt {i + 1}/{ATTEMPTS} failed, retrying in {wait}s")
             time.sleep(wait)
 
+    warm = warm_sample_report()
+    print(f"[refresh_job] sample report: {warm}")
+
     payload = cache.get() if ok else None
     meta = {
+        "sample_report": warm,
         "ok": ok,
         "ran_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(started)),
         "duration_s": round(time.time() - started, 1),

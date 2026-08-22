@@ -110,15 +110,22 @@ have you find them.
     `X-Forwarded-For`. Anyone behind the same NAT shares one budget, and the
     header is client-supplied, so a determined caller can rotate it. It bounds
     casual overuse of a free key, not abuse.
+23. **The sample report is written ahead of time**, by the hourly refresh job
+    rather than by the visitor who asks for it. The bundled sample's statistics
+    are identical every time, so its report is generated once and reused. That
+    click costs no allowance and never waits on the model.
+24. **Generated answers are capped in length** (512 output tokens). The summary
+    and answer limits stated in the prompts sit far below it; the cap exists so
+    a runaway generation cannot hang a request.
 
 ## Deployment
 
-23. **The forecast is rebuilt hourly by a separate process** (a Render cron
+25. **The forecast is rebuilt hourly by a separate process** (a Render cron
     job), never by a page load. The site serves whatever that job last
     published. A web instance may hold its copy for up to 60 seconds before
     re-reading, so a just-published forecast can take a minute to appear.
-24. **If the rebuild fails, the previous forecast keeps being served** with
+26. **If the rebuild fails, the previous forecast keeps being served** with
     `stale: true` and a visible timestamp, rather than an error page. The
     footer names the job that built it and when.
-25. **On a first deploy only**, before any cron run exists, the web service
+27. **On a first deploy only**, before any cron run exists, the web service
     warms the cache itself. That is the one path on which it loads the model.
