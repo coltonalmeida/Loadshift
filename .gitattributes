@@ -1,0 +1,13 @@
+# LightGBM writes the booster as a text file, but it is an artifact, not source.
+# On a machine with core.autocrlf=true (the Windows default) a clone rewrites
+# every LF in it as CRLF, and the booster then fails to load:
+#
+#     [LightGBM] [Fatal] Model format error, expect a tree here.
+#
+# The forecast cannot be built from a fresh clone when that happens. Check it
+# out byte for byte instead.
+api/artifacts/model.txt -text
+
+# Never eol-convert these either.
+*.parquet binary
+*.png binary

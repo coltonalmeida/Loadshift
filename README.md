@@ -167,8 +167,9 @@ cd api
 
 63 tests across 6 files, covering the IESO parsers and hour conventions, TOU and
 ULO pricing, the weather fallback chain, the insight cache, and the deliberately
-simulated case of the durable cache being unreachable. There is no pytest config
-file, so run them from `api/`.
+simulated case of the durable cache being unreachable. One test skips until
+`build_dataset.py` has been run, since it checks the built dataset. There is no
+pytest config file, so run them from `api/`.
 
 ## Repository layout
 
