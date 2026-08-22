@@ -1,0 +1,58 @@
+@import "tailwindcss";
+
+/* Grid dusk — Loadshift tokens */
+:root {
+  --ground: #0a0f1e;
+  --surface: #111830;
+  --surface-2: #16203c;
+  --hairline: #232d4a;
+  --ink: #e9edf6;
+  --ink-2: #98a2bc;
+  --ink-3: #5d6883;
+  --teal: #1ea891;        /* marginal series / clean */
+  --teal-text: #3fd6bc;   /* text-level accent tint */
+  --ember: #d0762e;       /* dirty hours */
+  --ember-text: #f0a05c;
+  --peri: #7e8bd6;        /* average series */
+  --amber: #e8b84b;       /* stale warning */
+}
+
+@theme inline {
+  --color-ground: var(--ground);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-hairline: var(--hairline);
+  --color-ink: var(--ink);
+  --color-ink-2: var(--ink-2);
+  --color-ink-3: var(--ink-3);
+  --color-teal: var(--teal);
+  --color-teal-text: var(--teal-text);
+  --color-ember: var(--ember);
+  --color-ember-text: var(--ember-text);
+  --color-peri: var(--peri);
+  --color-amber: var(--amber);
+  --font-display: var(--font-saira);
+  --font-sans: var(--font-archivo);
+  --font-mono: var(--font-plex-mono);
+}
+
+body {
+  background: var(--ground);
+  color: var(--ink);
+  font-family: var(--font-archivo), system-ui, sans-serif;
+}
+
+.display {
+  font-family: var(--font-saira), var(--font-archivo), sans-serif;
+}
+
+.mono {
+  font-family: var(--font-plex-mono), ui-monospace, monospace;
+  font-variant-numeric: tabular-nums;
+}
+
+::selection { background: color-mix(in oklab, var(--teal) 40%, transparent); }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition: none !important; }
+}
