@@ -127,5 +127,9 @@ have you find them.
 26. **If the rebuild fails, the previous forecast keeps being served** with
     `stale: true` and a visible timestamp, rather than an error page. The
     footer names the job that built it and when.
-27. **On a first deploy only**, before any cron run exists, the web service
-    warms the cache itself. That is the one path on which it loads the model.
+27. **If nothing else is refreshing the forecast, the web service does it**, and
+    says so: `/api/health` and `/api/platform` report `refresher` as `cron` or
+    `web-fallback`. It steps in only when no refresh job has reported a run in
+    two hours and the forecast is over an hour old, so in normal operation it
+    does nothing and never loads the model. This is the one path on which the
+    web service touches the model at all.

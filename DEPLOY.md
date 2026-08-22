@@ -79,7 +79,22 @@ The rule is absolute: **never an error page**. Degradation is layered.
 | IESO or Open-Meteo is down | The previous forecast, marked `stale: true`, with the time it was built. |
 | A cron run fails | Same. The previous forecast stays in Key Value untouched; the footer says the last rebuild failed. |
 | Key Value is unreachable | Each service falls back to its old in-process behaviour. `/api/health` reports `cache_backend: "in-process (kv unreachable)"`. |
-| A brand-new deploy with no cron run yet | The web service warms the cache once itself, then hands the job back to the cron. |
+| The cron is missing, stopped, or was never created | The web service notices nobody has reported a run in two hours and rebuilds the forecast itself, on its own hourly cadence. |
+
+### Who is refreshing
+
+`/api/health` and `/api/platform` both report a `refresher` field:
+
+- `cron` — the normal state. `loadshift-refresh` reported a run recently and the
+  web service is doing nothing but reading.
+- `web-fallback` — no refresh job has reported in, so the web service is
+  rebuilding the forecast itself. The site is correct but the topology is not;
+  check that `loadshift-refresh` exists and is succeeding.
+
+This is a safety net, not a second scheduler. It exists because a service that
+only reads is helpless when nothing is writing: deploying the cron-based code
+before the cron existed left the forecast frozen at whatever the first boot
+produced, ageing silently with nothing scheduled to replace it.
 
 ### Liveness vs readiness
 

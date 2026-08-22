@@ -2,13 +2,15 @@
 
 The hourly rebuild lives in the `loadshift-refresh` Render cron job, not here
 (see refresh_job.py). This process reads Render Key Value and never imports
-LightGBM. The only exception is the cold-start net below.
+LightGBM. The only exception is the supervisor below, which rebuilds the forecast
+itself when — and only when — nothing else is.
 """
 from __future__ import annotations
 
 import json
 import os
 import threading
+import time
 from contextlib import asynccontextmanager
 from xml.etree.ElementTree import ParseError as ET_ParseError
 
@@ -22,42 +24,81 @@ from . import (
     cache, config, greenbutton, insights, kv, optimize, pricing, ratelimit,
 )
 
-# Retry cadence for the cold-start net only. The steady-state schedule is the
-# Render cron job; this exists purely so a brand-new Blueprint that has not had
-# its first cron tick yet still comes up serving something.
-_BOOT_RETRY_S = 120
+# A cron that reported in this recently is doing its job. One missed hourly run
+# is not an emergency; two consecutive ones mean nobody is refreshing.
+CRON_GRACE_S = 2 * 3600
+# Matches the cron's own cadence: past this with no cron, we rebuild ourselves.
+MAX_PAYLOAD_AGE_S = 3600
+# Supervisor cadence. Faster while there is nothing to serve at all.
+TICK_EMPTY_S = 120
+TICK_IDLE_S = 300
 
 
-def _boot_refresh():
-    """Warm an empty cache once, then stop. The cron owns every later refresh.
+def _payload_age_s(p: dict | None) -> float | None:
+    if not p:
+        return None
+    try:
+        return (pd.Timestamp.utcnow() - pd.Timestamp(p["generated_at"])).total_seconds()
+    except (KeyError, ValueError):
+        return None
 
-    Only reached when Key Value has neither a forecast nor a record of any cron
-    run — i.e. a first deploy. Importing the model here is the one place the web
-    service touches it, and it happens off the request path in a daemon thread.
+
+def cron_is_healthy() -> bool:
+    """Has the refresh cron reported a run recently?
+
+    refresh_job.run() writes this on every run, success or failure, so a cron
+    that is alive but failing still counts as present — it owns the retry, and a
+    second rebuilder racing it would not help.
     """
-    import time as _time
-
-    while not cache.refresh():
-        _time.sleep(_BOOT_RETRY_S)
-    print("[boot] cold-start refresh succeeded; cron owns refreshes from here")
-
-
-def _needs_cold_start() -> bool:
-    if cache.get() is not None:
+    meta = kv.get_json(kv.FORECAST_META_KEY)
+    if not meta or not meta.get("ran_at"):
         return False
-    if kv.get_json(kv.FORECAST_META_KEY) is not None:
-        # A cron has run before. It may have failed, but it exists and will run
-        # again within the hour — do not race it with a second rebuild.
+    try:
+        age = (pd.Timestamp.utcnow() - pd.Timestamp(meta["ran_at"])).total_seconds()
+    except ValueError:
         return False
-    return True
+    return 0 <= age <= CRON_GRACE_S
+
+
+def refresher() -> str:
+    """Which process is actually keeping the forecast current."""
+    return "cron" if cron_is_healthy() else "web-fallback"
+
+
+def _supervise_once() -> None:
+    """Rebuild the forecast if, and only if, nothing else is going to.
+
+    The steady state on Render is the cron job, and in that state this does
+    nothing at all — which is what keeps LightGBM out of this process, since the
+    heavy imports live inside cache._build_payload().
+
+    It exists because a web service that only ever reads is helpless when nothing
+    is writing. With no cron and no Key Value the old one-shot warm-up left the
+    forecast frozen at whatever the cold start produced, ageing silently forever.
+    """
+    if cron_is_healthy():
+        return
+    age = _payload_age_s(cache.get())
+    if age is not None and age <= MAX_PAYLOAD_AGE_S:
+        return
+    why = "no forecast" if age is None else f"forecast {round(age / 60)} min old"
+    print(f"[supervisor] no cron refreshing ({why}) - rebuilding here")
+    cache.refresh()
+
+
+def _supervisor():
+    while True:
+        try:
+            _supervise_once()
+        except Exception as e:  # noqa: BLE001 - this thread must outlive any failure
+            print(f"[supervisor] tick failed: {type(e).__name__}: {e}")
+        time.sleep(TICK_EMPTY_S if cache.get() is None else TICK_IDLE_S)
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    print(f"[boot] cache backend: {kv.backend()}")
-    if _needs_cold_start():
-        print("[boot] no forecast and no cron history - warming once")
-        threading.Thread(target=_boot_refresh, daemon=True).start()
+    print(f"[boot] cache backend: {kv.backend()}, refresher: {refresher()}")
+    threading.Thread(target=_supervisor, daemon=True).start()
     yield
 
 
@@ -160,6 +201,9 @@ def health():
         "cache_backend": kv.backend(),
         "kv_ok": kv.available(),
         "kv_error": kv.last_error(),
+        # "web-fallback" means no cron has reported in and this process is
+        # rebuilding the forecast itself. Serving correctly, wrong topology.
+        "refresher": refresher(),
         **cache.diagnostics(),
     }
 
@@ -201,6 +245,7 @@ def platform():
         "is_preview": os.environ.get("IS_PULL_REQUEST") == "true",
         "cache_backend": kv.backend(),
         "cache_age_s": _cache_age_s(p),
+        "refresher": refresher(),
         "refresh": {
             "by_service": meta.get("service"),
             "by_commit": meta.get("commit"),
