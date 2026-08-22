@@ -37,8 +37,8 @@ export default function Home() {
   return (
     <main className="mx-auto max-w-5xl px-5 pb-20">
       {/* ── Now ─────────────────────────────────────────────── */}
-      <section id="now" className="scroll-mt-20">
-        <div className="grid gap-10 pb-4 pt-14 lg:grid-cols-[1.2fr_1fr] lg:gap-16">
+      <section id="now" className="flex min-h-[calc(100dvh-4rem)] scroll-mt-20 flex-col justify-center pb-12">
+        <div className="grid gap-10 pb-4 pt-8 lg:grid-cols-[1.2fr_1fr] lg:gap-16">
           <div>
             <h1 className="display text-4xl font-bold leading-[1.02] tracking-tight text-ink sm:text-5xl lg:text-6xl">
               Run it when the grid runs clean.
