@@ -1,58 +1,63 @@
 @import "tailwindcss";
 
-/* Grid dusk — Loadshift tokens */
+/* Loadshift "Day-arc" tokens. Committed single light theme: the page is the
+   daylight; night exists only inside the day-band data visualization. */
 :root {
-  --ground: #0a0f1e;
-  --surface: #111830;
-  --surface-2: #16203c;
-  --hairline: #232d4a;
-  --ink: #e9edf6;
-  --ink-2: #98a2bc;
-  --ink-3: #5d6883;
-  --teal: #1ea891;        /* marginal series / clean */
-  --teal-text: #3fd6bc;   /* text-level accent tint */
-  --ember: #d0762e;       /* dirty hours */
-  --ember-text: #f0a05c;
-  --peri: #7e8bd6;        /* average series */
-  --amber: #e8b84b;       /* stale warning */
+  --ground: #f2f4ef;
+  --surface: #ffffff;
+  --surface-2: #e9ede6;
+  --line: #d8ded4;
+  --ink: #1c2420;
+  --ink-2: #525d56;
+  --ink-3: #79837c;
+  --spruce: #0e8563;      /* accent + "clean" data pole */
+  --spruce-deep: #0a5c45; /* small text links, hover */
+  --sand: #d9c96a;        /* data midpoint */
+  --amber: #c55a14;       /* "dirty" data pole */
+  --peri: #5563b8;        /* average series */
+  --night: #2b3050;       /* sleep-hours shading inside the band */
 }
 
 @theme inline {
   --color-ground: var(--ground);
   --color-surface: var(--surface);
   --color-surface-2: var(--surface-2);
-  --color-hairline: var(--hairline);
+  --color-line: var(--line);
   --color-ink: var(--ink);
   --color-ink-2: var(--ink-2);
   --color-ink-3: var(--ink-3);
-  --color-teal: var(--teal);
-  --color-teal-text: var(--teal-text);
-  --color-ember: var(--ember);
-  --color-ember-text: var(--ember-text);
-  --color-peri: var(--peri);
+  --color-spruce: var(--spruce);
+  --color-spruce-deep: var(--spruce-deep);
   --color-amber: var(--amber);
-  --font-display: var(--font-saira);
-  --font-sans: var(--font-archivo);
-  --font-mono: var(--font-plex-mono);
+  --color-peri: var(--peri);
+  --color-night: var(--night);
+  --font-display: var(--font-bricolage);
+  --font-sans: var(--font-instrument);
+  --font-mono: var(--font-spline-mono);
 }
 
 body {
   background: var(--ground);
   color: var(--ink);
-  font-family: var(--font-archivo), system-ui, sans-serif;
+  font-family: var(--font-instrument), system-ui, sans-serif;
 }
 
 .display {
-  font-family: var(--font-saira), var(--font-archivo), sans-serif;
+  font-family: var(--font-bricolage), var(--font-instrument), sans-serif;
 }
 
 .mono {
-  font-family: var(--font-plex-mono), ui-monospace, monospace;
+  font-family: var(--font-spline-mono), ui-monospace, monospace;
   font-variant-numeric: tabular-nums;
 }
 
-::selection { background: color-mix(in oklab, var(--teal) 40%, transparent); }
+::selection {
+  background: color-mix(in oklab, var(--spruce) 25%, transparent);
+}
 
 @media (prefers-reduced-motion: reduce) {
-  *, *::before, *::after { animation: none !important; transition: none !important; }
+  *, *::before, *::after {
+    animation: none !important;
+    transition: none !important;
+  }
 }
