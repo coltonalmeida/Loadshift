@@ -1,0 +1,11 @@
+fastapi
+uvicorn[standard]
+pandas
+numpy
+pyarrow
+lightgbm
+scikit-learn
+requests
+apscheduler
+python-multipart
+pytest
