@@ -90,8 +90,10 @@ have you find them.
     advice.
 19. **Reports are cached by the statistics they describe.** Two analyses that
     reduce to the same numbers reuse one generated report, so the bundled
-    sample costs a single model call per server process rather than one per
-    visitor. Nothing about a request is written to disk.
+    sample costs one model call in total rather than one per visitor. The cache
+    is shared across instances and survives restarts (Render Key Value, 24h
+    expiry), keyed by a hash of the statistics. Nothing about a request is
+    written to disk.
 20. **You may supply your own Gemini key.** It is kept in your browser, sent
     with your report and follow-up requests so they run on your quota, and is
     never stored or logged on our server. The shared key lives only in the
@@ -100,6 +102,23 @@ have you find them.
 21. **The shared key carries a stated allowance**: six generated insights per
     visitor per ten minutes, and 300 a day across everyone. Cached answers cost
     nothing against it. The count is shown in the UI before anyone hits it, and
-    supplying your own key removes the limit. The counters are in-process, so a
-    restart resets them and a second instance would count separately; the demo
-    runs a single instance.
+    supplying your own key removes the limit. Counters live in Render Key Value,
+    so they are shared across instances and survive a redeploy. If Key Value is
+    unreachable the limiter falls back to per-process counting, which is more
+    permissive than intended — we prefer that to refusing service.
+22. **Visitors are identified by IP for that allowance**, read from
+    `X-Forwarded-For`. Anyone behind the same NAT shares one budget, and the
+    header is client-supplied, so a determined caller can rotate it. It bounds
+    casual overuse of a free key, not abuse.
+
+## Deployment
+
+23. **The forecast is rebuilt hourly by a separate process** (a Render cron
+    job), never by a page load. The site serves whatever that job last
+    published. A web instance may hold its copy for up to 60 seconds before
+    re-reading, so a just-published forecast can take a minute to appear.
+24. **If the rebuild fails, the previous forecast keeps being served** with
+    `stale: true` and a visible timestamp, rather than an error page. The
+    footer names the job that built it and when.
+25. **On a first deploy only**, before any cron run exists, the web service
+    warms the cache itself. That is the one path on which it loads the model.
