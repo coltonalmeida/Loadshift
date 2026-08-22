@@ -1,7 +1,7 @@
-// Empty in production on Render: the browser calls same-origin /api/*, which
-// next.config.ts rewrites onto loadshift-api over Render's private network.
-// The Vercel fallback deployment sets NEXT_PUBLIC_API_BASE to the public API
-// origin instead; dev keeps the localhost default so `npm run dev` needs no env.
+// Empty in production: the browser calls same-origin /api/*, which the route
+// handler at app/api/[...path] proxies to loadshift-api over Render's private
+// network. Dev keeps the localhost default so `npm run dev` needs no env; the
+// override exists for running the frontend against a remote API by hand.
 const BASE =
   process.env.NEXT_PUBLIC_API_BASE ??
   (process.env.NODE_ENV === "development" ? "http://localhost:8000" : "");

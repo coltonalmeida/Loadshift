@@ -104,10 +104,10 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="Loadshift API", lifespan=lifespan)
 
-# On Render the browser reaches this service through the Next.js rewrite in
-# loadshift-web, same-origin, so no CORS is involved at all. The wildcard is
-# for the Vercel fallback deployment and local dev; every endpoint is public,
-# read-only, and unauthenticated, so there is no cookie or session to protect.
+# In production the browser reaches this service through loadshift-web's proxy,
+# same-origin, so CORS is not involved at all. The wildcard covers local dev and
+# anyone calling the public API directly; every endpoint is public, read-only and
+# unauthenticated, so there is no cookie or session for an origin check to guard.
 app.add_middleware(
     CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"]
 )

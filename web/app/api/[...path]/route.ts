@@ -10,8 +10,9 @@
  * The browser therefore only ever talks to its own origin: no CORS preflight,
  * and API traffic never leaves Render's network.
  *
- * Unused on the Vercel fallback deployment, where NEXT_PUBLIC_API_BASE points
- * the browser straight at the public API origin.
+ * Bypassed only when NEXT_PUBLIC_API_BASE is set to an absolute origin, which
+ * points the browser straight at the API instead — local dev, or a frontend run
+ * outside Render.
  */
 import { type NextRequest, NextResponse } from "next/server";
 
