@@ -165,10 +165,8 @@ forecast rebuild: the cron job publishes to Key Value each hour and the web
 service only reads it, so "never run the model on a request path" holds because
 of the topology, the web service does not import LightGBM at all.
 
-Every failure mode degrades rather than erroring. If IESO or the weather API is
-down, the previous forecast is served and flagged `stale`, with the time it was
-built. If Key Value is unreachable, each service falls back to its in-process
-path and `/api/health` says so.
+[DEPLOY.md](DEPLOY.md) covers why the split exists, how each failure mode
+degrades, and first-time setup.
 
 ## Data sources
 
