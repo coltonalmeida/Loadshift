@@ -82,7 +82,7 @@ def run() -> bool:
         "ok": ok,
         "ran_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(started)),
         "duration_s": round(time.time() - started, 1),
-        "attempts": ATTEMPTS if not ok else i + 1,
+        "attempts": i + 1 if ok else ATTEMPTS,
         "generated_at": payload.get("generated_at") if payload else None,
         "weather_source": payload.get("weather_source") if payload else None,
         "error": cache.diagnostics()["last_error"],
