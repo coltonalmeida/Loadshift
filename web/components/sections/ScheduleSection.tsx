@@ -29,12 +29,17 @@ const dollars = (cents: number) => `$${(cents / 100).toFixed(2)}`;
 function MoneyLines({ w }: { w: ScheduleWindow }) {
   const midKg = (w.g_saved_range[0] + w.g_saved_range[1]) / 2000;
   const uloWins = w.cost_best_ulo_cents < w.cost_best_cents * 0.75;
+  // Best and worst hours often share a TOU tier — every weekend hour is off-peak —
+  // and the comparison then reads "$0.33 vs $0.33 · saves $0.00". Drop it.
+  const worthSaying = w.cents_saved >= 0.5;
   return (
     <>
-      <p className="mono mt-1.5 text-sm text-ink-2">
-        {dollars(w.cost_best_cents)} at this hour vs {dollars(w.cost_worst_cents)} at the
-        worst · saves {dollars(w.cents_saved)} a run
-      </p>
+      {worthSaying && (
+        <p className="mono mt-1.5 text-sm text-ink-2">
+          {dollars(w.cost_best_cents)} at this hour vs {dollars(w.cost_worst_cents)} at
+          the worst · saves {dollars(w.cents_saved)} a run
+        </p>
+      )}
       <p className="mt-1.5 text-xs leading-relaxed text-ink-3">
         The CO₂ saved is like skipping {fmtKm(midKg)} of driving.
         {uloWins &&
