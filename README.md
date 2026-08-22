@@ -36,6 +36,11 @@ Built solo at Ignition Hacks V.7 (Environmental track).
    must provide it under O. Reg. 633/21) and see what shifting would have saved
    you over the past year. A synthetic sample file is bundled.
 
+**External validation:** our independently-computed average intensity tracks
+Electricity Maps' Ontario figure within **2.1 g/kWh** (bias +1.8 g, correlation
+0.91) over the overlapping window — same lifecycle emission-factor basis. We
+validate against their API once; we do not build on it.
+
 Assumptions and limitations are stated in [ASSUMPTIONS.md](ASSUMPTIONS.md) —
 including the big one: intertie flows are unmodelled, and our slopes explain
 ~78% of a marginal kWh.
