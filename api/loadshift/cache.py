@@ -1,23 +1,37 @@
 """Hourly cache refresh: fetch today's data, predict 24h, write forecast JSON.
 
-Requests NEVER trigger this; APScheduler calls refresh() hourly. On any
+Requests NEVER trigger this. The Render cron job `loadshift-refresh` calls
+refresh() hourly (see refresh_job.py); the web service only ever reads. On any
 upstream failure the last-known-good payload keeps being served with
 stale=true â€” never an error page.
+
+Read order is Render Key Value first, then process memory, then local disk.
+KV is what makes a freshly deployed instance warm: the container filesystem is
+wiped on every deploy, so the disk tier only ever helps a restart-in-place.
 """
 from __future__ import annotations
 
 import datetime as dt
 import json
 import threading
+import time
 from pathlib import Path
 
 import pandas as pd
 
-from . import config, dataset, ieso, mef, model, optimize, weather
+from . import config, dataset, ieso, kv, weather
 
 CACHE_PATH = Path(__file__).resolve().parents[1] / "data" / "cache_forecast.json"
+
+# How long a web instance may reuse its in-process copy before re-reading Key
+# Value. The cron writes hourly, so a minute of skew is invisible to a visitor
+# while keeping KV reads off the hot path of every single request.
+_MEM_TTL_S = 60
+# After a KV miss, retry sooner than a full TTL rather than sitting on a copy.
+_MEM_RETRY_S = 5
+
 _lock = threading.Lock()
-_state: dict = {"payload": None, "last_error": None, "attempts": 0}
+_state: dict = {"payload": None, "last_error": None, "attempts": 0, "fetched_at": 0.0}
 
 
 def _recent_frame(hours: int = 240) -> pd.DataFrame:
@@ -53,6 +67,11 @@ def _recent_frame(hours: int = 240) -> pd.DataFrame:
 
 
 def _build_payload() -> dict:
+    # Imported here, not at module scope: `model` pulls in LightGBM, and only
+    # the cron job ever reaches this function. The web service imports cache.py
+    # to READ, and must not pay for a training-time dependency to do it.
+    from . import mef, model
+
     curve = mef.MefCurve.load()
     booster = model.load_booster()
     recent = _recent_frame()
@@ -91,7 +110,7 @@ def _build_payload() -> dict:
 
     pred = model.predict(booster, fut)
 
-    card = json.loads((model.ARTIFACTS / "model_card.json").read_text())
+    card = json.loads((config.ARTIFACTS / "model_card.json").read_text())
     mae = card["mae_model"]
 
     # Average intensity forecast: seasonal naive (same hour yesterday) â€” for
@@ -146,8 +165,15 @@ def refresh() -> bool:
     with _lock:
         _state["last_error"] = None
         _state["payload"] = payload
-        CACHE_PATH.parent.mkdir(exist_ok=True)
-        CACHE_PATH.write_text(json.dumps(payload))
+        _state["fetched_at"] = time.monotonic()
+        try:
+            CACHE_PATH.parent.mkdir(exist_ok=True)
+            CACHE_PATH.write_text(json.dumps(payload))
+        except OSError as e:  # a read-only disk must not fail a good refresh
+            print(f"[cache] local write failed: {type(e).__name__}: {e}")
+    # The durable tier. This is what a redeployed web service reads on boot,
+    # and the only copy that outlives the container that produced it.
+    kv.set_json(kv.FORECAST_KEY, payload)
     print(f"[cache] refreshed at {payload['generated_at']}")
     return True
 
@@ -158,14 +184,60 @@ def diagnostics() -> dict:
         return {"attempts": _state["attempts"], "last_error": _state["last_error"]}
 
 
+def _disk() -> dict | None:
+    if not CACHE_PATH.exists():
+        return None
+    try:
+        p = json.loads(CACHE_PATH.read_text())
+    except (OSError, ValueError) as e:
+        print(f"[cache] local read failed: {type(e).__name__}: {e}")
+        return None
+    p["stale"] = True  # disk copy is from a previous process
+    return p
+
+
 def get() -> dict | None:
-    """Current payload (memory, falling back to disk)."""
+    """Current payload: Key Value, else process memory, else local disk.
+
+    The in-process copy is only a read-through cache over Key Value, held for
+    _MEM_TTL_S. Without that expiry a web instance would serve the payload it
+    booted with forever while the cron job wrote newer ones every hour.
+    """
+    now = time.monotonic()
     with _lock:
-        if _state["payload"] is None and CACHE_PATH.exists():
-            p = json.loads(CACHE_PATH.read_text())
-            p["stale"] = True  # disk copy is from a previous process
+        fresh = _state["payload"] is not None and now - _state["fetched_at"] < _MEM_TTL_S
+        if fresh:
+            return _state["payload"]
+
+    p = _from_kv()
+    if p is not None:
+        with _lock:
             _state["payload"] = p
-        return _state["payload"]
+            _state["fetched_at"] = now
+        return p
+
+    # KV missed or is unreachable. Anything we already hold beats nothing, and
+    # it is better than 503 — but re-check KV on the next call, not in an hour.
+    with _lock:
+        if _state["payload"] is not None:
+            _state["fetched_at"] = now - _MEM_TTL_S + _MEM_RETRY_S
+            return _state["payload"]
+
+    p = _disk()
+    if p is not None:
+        with _lock:
+            _state["payload"] = p
+            _state["fetched_at"] = now - _MEM_TTL_S + _MEM_RETRY_S
+    return p
+
+
+def _from_kv() -> dict | None:
+    """Payload written by the cron job, if Key Value has one.
+
+    Not marked stale: a payload the cron wrote this hour is current, and it
+    carries its own generated_at and stale flag for the UI to judge.
+    """
+    return kv.get_json(kv.FORECAST_KEY)
 
 
 def forecast_series() -> pd.Series:

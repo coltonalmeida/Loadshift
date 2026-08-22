@@ -74,11 +74,15 @@ def _fetch_live(days: int, attempts: int) -> dict:
 
 
 def _store_last_good(payload: dict) -> None:
+    from . import kv
+
+    blob = {"fetched_at": _utcnow().isoformat(), "payload": payload}
+    # Key Value first: api/data/ is wiped on every Render deploy, so the disk
+    # copy below only ever helps a restart in place. Both are best-effort.
+    kv.set_json(kv.WEATHER_KEY, blob, ttl_s=FALLBACK_MAX_AGE_H * 3600)
     try:
         DATA_DIR.mkdir(exist_ok=True)
-        LAST_GOOD.write_text(
-            json.dumps({"fetched_at": _utcnow().isoformat(), "payload": payload})
-        )
+        LAST_GOOD.write_text(json.dumps(blob))
     except OSError as e:  # a read-only disk must not fail an otherwise good refresh
         print(f"[weather] could not store last-good: {type(e).__name__}: {e}")
 
@@ -88,10 +92,23 @@ def _utcnow() -> pd.Timestamp:
 
 
 def _load_stored(path: Path) -> tuple[pd.DataFrame, float] | None:
-    """(frame, age_hours) from a stored snapshot, or None if unusable."""
+    """(frame, age_hours) from a stored snapshot file, or None if unusable."""
     try:
         blob = json.loads(path.read_text())
     except (OSError, ValueError):
+        return None
+    return _from_blob(blob)
+
+
+def _load_kv() -> tuple[pd.DataFrame, float] | None:
+    """Last-good snapshot from Render Key Value, the tier that survives deploys."""
+    from . import kv
+
+    return _from_blob(kv.get_json(kv.WEATHER_KEY))
+
+
+def _from_blob(blob) -> tuple[pd.DataFrame, float] | None:
+    if not isinstance(blob, dict):
         return None
     payload = blob.get("payload")
     fetched = blob.get("fetched_at")
@@ -116,8 +133,15 @@ def forecast(days: int = 3, attempts: int = 3) -> pd.DataFrame:
     except Exception as live_error:  # noqa: BLE001 - fall back below
         print(f"[weather] live fetch failed: {type(live_error).__name__}: {live_error}")
 
-    for name, path in (("last_good", LAST_GOOD), ("seed", SEED)):
-        got = _load_stored(path)
+    # Key Value before disk: on Render the disk copy is gone after a deploy, so
+    # KV is usually the only real weather a cold instance can still reach.
+    tiers = (
+        ("last_good", _load_kv),
+        ("last_good", lambda: _load_stored(LAST_GOOD)),
+        ("seed", lambda: _load_stored(SEED)),
+    )
+    for name, load in tiers:
+        got = load()
         if got is None:
             continue
         df, age_h = got

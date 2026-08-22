@@ -1,0 +1,123 @@
+# Loadshift on Render — the whole product as one Blueprint.
+#
+# Four resources, one private network:
+#
+#   loadshift-web     Next.js. Public URL. Proxies /api/* to loadshift-api over
+#                     Render's private network, so the browser never makes a
+#                     cross-origin call and API traffic never leaves Render.
+#   loadshift-api     FastAPI. Reads the cache. Never fetches IESO, never loads
+#                     LightGBM, never runs the model.
+#   loadshift-refresh Cron. The only process that runs the model. Publishes the
+#                     forecast to Key Value hourly.
+#   loadshift-cache   Key Value (Valkey 8). The only tier that survives a deploy.
+#
+# Render containers have an ephemeral filesystem. Before this Blueprint the
+# forecast, the weather last-known-good, the shared Gemini key budget and the
+# insight cache all lived in the web container and were destroyed several times
+# an hour by ordinary deploys. They live in loadshift-cache now.
+#
+# Blueprint file must be at the repo ROOT to be discovered.
+
+previews:
+  generation: automatic
+  # Judging-week guard: a forgotten PR must not quietly drain the credit balance.
+  expireAfterDays: 3
+
+envVarGroups:
+  - name: loadshift-shared
+    envVars:
+      # Prompted once at Blueprint creation, then shared by the API and the cron
+      # job. Never in git.
+      - key: GEMINI_API_KEY
+        sync: false
+      # Nothing pinned this before; a silent runtime bump breaks the committed
+      # LightGBM artifacts.
+      - key: PYTHON_VERSION
+        value: "3.12.4"
+
+services:
+  # --------------------------------------------------------------- key value
+  - type: keyvalue
+    name: loadshift-cache
+    region: ohio
+    plan: starter
+    # The forecast is the whole product. It must never be evicted to make room
+    # for an insight-cache entry.
+    maxmemoryPolicy: noeviction
+    # Internal-only: reachable from the API and the cron job over the private
+    # network, from nowhere else.
+    ipAllowList: []
+    previewPlan: free
+
+  # --------------------------------------------------------------------- api
+  - type: web
+    name: loadshift-api
+    runtime: python
+    rootDir: api
+    region: ohio
+    plan: starter
+    healthCheckPath: /api/health
+    autoDeployTrigger: commit
+    buildCommand: pip install -r requirements.txt
+    # --proxy-headers so uvicorn agrees with the X-Forwarded-For that _client()
+    # in main.py already reads for the shared-key budget.
+    startCommand: >-
+      uvicorn loadshift.main:app --host 0.0.0.0 --port $PORT
+      --proxy-headers --forwarded-allow-ips '*'
+    envVars:
+      - fromGroup: loadshift-shared
+      - key: KV_URL
+        fromService:
+          name: loadshift-cache
+          type: keyvalue
+          property: connectionString
+    previews:
+      plan: starter
+
+  # -------------------------------------------------------------------- cron
+  - type: cron
+    name: loadshift-refresh
+    runtime: python
+    rootDir: api
+    region: ohio
+    plan: starter
+    # Seven past the hour: IESO publishes on the hour, and arriving early just
+    # rebuilds on the previous hour's file.
+    schedule: "7 * * * *"
+    buildCommand: pip install -r requirements.txt
+    startCommand: python -m loadshift.refresh_job
+    envVars:
+      - fromGroup: loadshift-shared
+      - key: KV_URL
+        fromService:
+          name: loadshift-cache
+          type: keyvalue
+          property: connectionString
+
+  # --------------------------------------------------------------------- web
+  - type: web
+    name: loadshift-web
+    runtime: node
+    rootDir: web
+    region: ohio
+    plan: starter
+    healthCheckPath: /
+    autoDeployTrigger: commit
+    buildCommand: npm ci && npm run build
+    startCommand: npm start
+    envVars:
+      # Consumed by next.config.ts to rewrite /api/* onto the private network.
+      # `host` is the private hostname, not the public onrender.com URL — that
+      # is the point: this hop never touches the public internet.
+      - key: API_HOST
+        fromService:
+          name: loadshift-api
+          type: web
+          property: host
+      - key: API_PORT
+        fromService:
+          name: loadshift-api
+          type: web
+          property: port
+    previews:
+      plan: starter

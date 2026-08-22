@@ -1,11 +1,16 @@
-fastapi
-uvicorn[standard]
-pandas
-numpy
-pyarrow
-lightgbm
-scikit-learn
-requests
-apscheduler
-python-multipart
-pytest
+# Pinned deliberately. An unpinned rebuild on Render can pull a different
+# pandas/numpy/lightgbm major than the one the committed artifacts were built
+# against, and the first sign of it is a failed deploy. Versions below are the
+# ones the model in api/artifacts/ was trained and validated with.
+fastapi==0.141.1
+uvicorn[standard]==0.52.4
+pandas==3.0.5
+numpy==2.5.2
+pyarrow==25.0.1
+lightgbm==4.7.0
+scikit-learn==1.9.0
+requests==2.34.2
+python-multipart==0.0.32
+
+# Render Key Value speaks the Redis protocol (Valkey 8).
+redis==8.1.0

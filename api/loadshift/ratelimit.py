@@ -6,12 +6,20 @@ more. Callers supplying their own key never reach this module.
 
 check() and consume() are deliberately separate: a cached answer should report
 the remaining allowance without spending any of it.
+
+Counters live in Render Key Value when it is reachable. In process memory they
+reset on every deploy — handing every visitor a fresh allowance several times
+an hour — and the global daily cap multiplies by the instance count, which
+defeats the point of a budget on a key one person pays for. The in-process
+Limiter below stays as the fallback for local dev and a KV outage.
 """
 from __future__ import annotations
 
 import threading
 import time
 from collections import OrderedDict, deque
+
+from . import kv
 
 PER_IP_CALLS = 6
 PER_IP_WINDOW_S = 600
@@ -82,4 +90,59 @@ class Limiter:
             return max(0, self.per_client - len(hits))
 
 
-shared = Limiter()
+class KvLimiter:
+    """Same contract as Limiter, backed by Valkey sorted sets.
+
+    ZREMRANGEBYSCORE + ZCARD is the deque prune-and-count, and per-key EXPIRE
+    replaces the MAX_CLIENTS LRU: an address that stops calling evicts itself.
+    Any KV failure returns None from the kv helpers, and every method below
+    then defers to `local` so a cache outage never becomes a 500.
+    """
+
+    def __init__(self, local: Limiter) -> None:
+        self.local = local
+        self.per_client = local.per_client
+        self.window_s = local.window_s
+        self.daily = local.daily
+
+    def _day_count(self, now: float) -> int | None:
+        return kv.window_count(kv.DAY_KEY, DAY_S, now)
+
+    def check(self, client: str) -> tuple[bool, int, int]:
+        now = time.time()
+        day = self._day_count(now)
+        used = kv.window_count(kv.client_key(client), self.window_s, now)
+        if day is None or used is None:
+            return self.local.check(client)
+
+        if day >= self.daily:
+            oldest = kv.window_oldest(kv.DAY_KEY, DAY_S, now)
+            retry = int(DAY_S - (now - oldest)) + 1 if oldest else DAY_S
+            return False, 0, retry
+        remaining = max(0, self.per_client - used)
+        if not remaining:
+            oldest = kv.window_oldest(kv.client_key(client), self.window_s, now)
+            retry = int(self.window_s - (now - oldest)) + 1 if oldest else self.window_s
+            return False, 0, retry
+        return True, remaining, 0
+
+    def consume(self, client: str) -> int:
+        now = time.time()
+        used = kv.window_add(kv.client_key(client), self.window_s, now)
+        if used is None:
+            return self.local.consume(client)
+        kv.window_add(kv.DAY_KEY, DAY_S, now)
+        return max(0, self.per_client - used)
+
+    def remaining(self, client: str) -> int:
+        now = time.time()
+        day = self._day_count(now)
+        used = kv.window_count(kv.client_key(client), self.window_s, now)
+        if day is None or used is None:
+            return self.local.remaining(client)
+        if day >= self.daily:
+            return 0
+        return max(0, self.per_client - used)
+
+
+shared = KvLimiter(Limiter())

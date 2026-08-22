@@ -26,8 +26,14 @@ TIMEOUT_S = 12
 
 # Identical stats reuse a report. The bundled sample is byte-identical on every
 # load, so only the first visitor pays the latency and the quota.
+#
+# Two tiers: this per-process LRU, and Render Key Value behind it. The LRU alone
+# is emptied by every deploy and is not shared between instances, so the sample
+# report — the one a judge is most likely to trigger — was being regenerated
+# and re-billed far more often than "identical stats reuse a report" implies.
 _CACHE_MAX = 32
 _cache: OrderedDict[str, dict] = OrderedDict()
+_KV_TTL_S = 24 * 3600
 
 # Google issues keys in more than one shape (AIza..., AQ....); cover both.
 _KEY_RE = re.compile(r"(?:AIza|AQ\.)[0-9A-Za-z_\-.]{10,}")
@@ -126,14 +132,31 @@ def _cached(key: str):
     hit = _cache.get(key)
     if hit is not None:
         _cache.move_to_end(key)
-    return hit
+        return hit
+    # L2: written by whichever instance generated it, survives redeploys.
+    from . import kv
+
+    blob = kv.get_json(kv.insight_key(key))
+    if blob is None:
+        return None
+    value = blob.get("v")
+    if value is not None:
+        _remember(key, value)
+    return value
 
 
-def _store(key: str, value):
+def _remember(key: str, value):
     _cache[key] = value
     if len(_cache) > _CACHE_MAX:
         _cache.popitem(last=False)
     return value
+
+
+def _store(key: str, value):
+    from . import kv
+
+    kv.set_json(kv.insight_key(key), {"v": value}, ttl_s=_KV_TTL_S)
+    return _remember(key, value)
 
 
 def report_key(stats: dict) -> str:

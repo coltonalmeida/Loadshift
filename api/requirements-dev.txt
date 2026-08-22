@@ -1,0 +1,4 @@
+# Local/CI only. Kept out of requirements.txt so Render does not build a test
+# runner into the production image.
+-r requirements.txt
+pytest==9.1.1

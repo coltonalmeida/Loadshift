@@ -1,45 +1,72 @@
-"""Loadshift API. Serves cached forecasts only — no model runs on request paths."""
+"""Loadshift API. Serves cached forecasts only — no model runs on request paths.
+
+The hourly rebuild lives in the `loadshift-refresh` Render cron job, not here
+(see refresh_job.py). This process reads Render Key Value and never imports
+LightGBM. The only exception is the cold-start net below.
+"""
 from __future__ import annotations
 
 import json
+import os
 import threading
 from contextlib import asynccontextmanager
 from xml.etree.ElementTree import ParseError as ET_ParseError
 
 import pandas as pd
-from apscheduler.schedulers.background import BackgroundScheduler
 from fastapi import FastAPI, File, Header, HTTPException, Request, UploadFile
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
 from . import (
-    cache, config, greenbutton, insights, model, optimize, pricing, ratelimit,
+    cache, config, greenbutton, insights, kv, optimize, pricing, ratelimit,
 )
+
+# Retry cadence for the cold-start net only. The steady-state schedule is the
+# Render cron job; this exists purely so a brand-new Blueprint that has not had
+# its first cron tick yet still comes up serving something.
+_BOOT_RETRY_S = 120
 
 
 def _boot_refresh():
-    """Refresh until the first success: a fresh instance has no cache to
-    serve stale, and upstream rate limits (Open-Meteo 429 after repeated
-    deploys) must not leave the site empty for the next hourly tick."""
+    """Warm an empty cache once, then stop. The cron owns every later refresh.
+
+    Only reached when Key Value has neither a forecast nor a record of any cron
+    run — i.e. a first deploy. Importing the model here is the one place the web
+    service touches it, and it happens off the request path in a daemon thread.
+    """
     import time as _time
 
     while not cache.refresh():
-        _time.sleep(120)
+        _time.sleep(_BOOT_RETRY_S)
+    print("[boot] cold-start refresh succeeded; cron owns refreshes from here")
+
+
+def _needs_cold_start() -> bool:
+    if cache.get() is not None:
+        return False
+    if kv.get_json(kv.FORECAST_META_KEY) is not None:
+        # A cron has run before. It may have failed, but it exists and will run
+        # again within the hour — do not race it with a second rebuild.
+        return False
+    return True
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Retry-until-first-success in a thread so boot isn't blocked; hourly after.
-    threading.Thread(target=_boot_refresh, daemon=True).start()
-    sched = BackgroundScheduler()
-    sched.add_job(cache.refresh, "interval", minutes=60, id="refresh")
-    sched.start()
+    print(f"[boot] cache backend: {kv.backend()}")
+    if _needs_cold_start():
+        print("[boot] no forecast and no cron history - warming once")
+        threading.Thread(target=_boot_refresh, daemon=True).start()
     yield
-    sched.shutdown(wait=False)
 
 
 app = FastAPI(title="Loadshift API", lifespan=lifespan)
+
+# On Render the browser reaches this service through the Next.js rewrite in
+# loadshift-web, same-origin, so no CORS is involved at all. The wildcard is
+# for the Vercel fallback deployment and local dev; every endpoint is public,
+# read-only, and unauthenticated, so there is no cookie or session to protect.
 app.add_middleware(
     CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"]
 )
@@ -104,22 +131,82 @@ def _failed(e: insights.InsightsError, remaining: int | None) -> JSONResponse:
     )
 
 
+def _cache_age_s(p: dict | None) -> int | None:
+    if not p:
+        return None
+    age = (pd.Timestamp.utcnow() - pd.Timestamp(p["generated_at"])).total_seconds()
+    return round(age)
+
+
 @app.get("/api/health")
 def health():
+    """Liveness. Always 200 on purpose — this is Render's healthCheckPath, and
+    a warming instance must not fail its own deploy. Readiness is /api/ready."""
     p = cache.get()
-    age = None
-    if p:
-        age = (pd.Timestamp.utcnow() - pd.Timestamp(p["generated_at"])).total_seconds()
     return {
         "ok": True,
-        "artifacts_loaded": (model.ARTIFACTS / "model.txt").exists(),
-        "cache_age_s": round(age) if age is not None else None,
+        "artifacts_loaded": (config.ARTIFACTS / "model.txt").exists(),
+        "cache_age_s": _cache_age_s(p),
         "stale": p["stale"] if p else None,
         # Which weather a served forecast was actually built from: a payload
         # standing on a stored snapshot should be visible without guessing.
         "weather_source": p.get("weather_source") if p else None,
         "weather_age_h": p.get("weather_age_h") if p else None,
+        # Which tier answered. "in-process (kv unreachable)" means the durable
+        # cache is down and this instance is running on whatever it still holds.
+        "cache_backend": kv.backend(),
+        "kv_ok": kv.available(),
+        "kv_error": kv.last_error(),
         **cache.diagnostics(),
+    }
+
+
+@app.get("/api/ready")
+def ready():
+    """Readiness: can this instance actually answer /api/forecast right now?
+
+    Deliberately NOT wired to healthCheckPath — Render would fail the deploy of
+    an instance that is merely waiting on its first cron run.
+    """
+    p = cache.get()
+    body = {
+        "ready": p is not None,
+        "cache_age_s": _cache_age_s(p),
+        "cache_backend": kv.backend(),
+        **cache.diagnostics(),
+    }
+    return JSONResponse(status_code=200 if p else 503, content=body)
+
+
+@app.get("/api/platform")
+def platform():
+    """Where this response came from, and who built the forecast in it.
+
+    Render injects the service/commit/instance identifiers; the refresh block
+    is written by the cron job. Surfaced in the UI footer so the deployment
+    topology is inspectable rather than asserted.
+    """
+    meta = kv.get_json(kv.FORECAST_META_KEY) or {}
+    p = cache.get()
+    return {
+        "platform": "render" if os.environ.get("RENDER") else "local",
+        "service": os.environ.get("RENDER_SERVICE_NAME"),
+        "service_type": os.environ.get("RENDER_SERVICE_TYPE"),
+        "instance": os.environ.get("RENDER_INSTANCE_ID"),
+        "commit": (os.environ.get("RENDER_GIT_COMMIT") or "")[:7] or None,
+        "branch": os.environ.get("RENDER_GIT_BRANCH"),
+        "is_preview": os.environ.get("IS_PULL_REQUEST") == "true",
+        "cache_backend": kv.backend(),
+        "cache_age_s": _cache_age_s(p),
+        "refresh": {
+            "by_service": meta.get("service"),
+            "by_commit": meta.get("commit"),
+            "ran_at": meta.get("ran_at"),
+            "ok": meta.get("ok"),
+            "duration_s": meta.get("duration_s"),
+            "generated_at": meta.get("generated_at"),
+            "weather_source": meta.get("weather_source"),
+        },
     }
 
 
@@ -306,8 +393,8 @@ def insights_ask(
 
 @app.get("/api/model-card")
 def model_card():
-    card = json.loads((model.ARTIFACTS / "model_card.json").read_text())
-    curve = json.loads((model.ARTIFACTS / "mef_curve.json").read_text())
+    card = json.loads((config.ARTIFACTS / "model_card.json").read_text())
+    curve = json.loads((config.ARTIFACTS / "mef_curve.json").read_text())
     slopes = [s for c in curve["curves"].values() for s in c["sum_slope"]]
     card["mef_method"] = {
         "method": curve["method"],
