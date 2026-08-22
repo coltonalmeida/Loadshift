@@ -61,6 +61,58 @@ body {
   background: color-mix(in oklab, var(--spruce) 25%, transparent);
 }
 
+/* Wake/bed picker: two native range inputs stacked over one shared track.
+   Native ranges rather than a custom pointer handler so keyboard control, focus
+   and touch target sizes are correct for free. The inputs ignore pointer events
+   and only the thumbs accept them, so a click reaches the nearer handle instead
+   of whichever input happens to be painted on top. */
+.wb-range {
+  -webkit-appearance: none;
+  appearance: none;
+  background: transparent;
+  pointer-events: none;
+  outline: none;
+}
+.wb-range::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  pointer-events: auto;
+  height: 18px;
+  width: 18px;
+  border-radius: 9999px;
+  background: var(--surface);
+  border: 2px solid var(--spruce);
+  box-shadow: 0 1px 3px rgb(0 0 0 / 0.25);
+  cursor: grab;
+}
+.wb-range::-moz-range-thumb {
+  pointer-events: auto;
+  box-sizing: border-box;
+  height: 18px;
+  width: 18px;
+  border-radius: 9999px;
+  background: var(--surface);
+  border: 2px solid var(--spruce);
+  box-shadow: 0 1px 3px rgb(0 0 0 / 0.25);
+  cursor: grab;
+}
+.wb-range::-webkit-slider-thumb:active,
+.wb-range::-moz-range-thumb:active {
+  cursor: grabbing;
+}
+.wb-range::-moz-range-track {
+  background: transparent;
+  border: none;
+}
+.wb-range:focus-visible::-webkit-slider-thumb {
+  outline: 2px solid var(--ink);
+  outline-offset: 2px;
+}
+.wb-range:focus-visible::-moz-range-thumb {
+  outline: 2px solid var(--ink);
+  outline-offset: 2px;
+}
+
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
     animation: none !important;

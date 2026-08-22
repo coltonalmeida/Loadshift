@@ -1,5 +1,5 @@
 "use client";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import DayBand from "@/components/DayBand";
 import WakeBedPicker from "@/components/WakeBedPicker";
 import {
@@ -60,8 +60,13 @@ export default function ScheduleSection({
   const [result, setResult] = useState<ScheduleResult | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  // Requests can overlap once the hour picker is a slider. Keep a sequence
+  // number so a slow earlier response cannot overwrite a newer answer.
+  const seq = useRef(0);
+
   const run = useCallback(
     async (key: string, w: string, wk: number, bd: number) => {
+      const mine = ++seq.current;
       setError(null);
       const a = APPLIANCES.find((x) => x.key === key)!;
       try {
@@ -72,16 +77,22 @@ export default function ScheduleSection({
           awake_end: bd,
           ...(w ? { watts: Number(w) } : {}),
         });
-        setResult(r);
+        if (mine === seq.current) setResult(r);
       } catch {
-        setError("The scheduler is waking up. Try again in a minute.");
+        if (mine === seq.current) {
+          setError("The scheduler is waking up. Try again in a minute.");
+        }
       }
     },
     []
   );
 
+  // Debounced: dragging the hour slider crosses many values, and each one would
+  // otherwise be its own POST. The picker still updates the readout and the day
+  // band immediately — only the network call waits for the drag to settle.
   useEffect(() => {
-    run(appliance, watts, wake, bed);
+    const t = setTimeout(() => run(appliance, watts, wake, bed), 250);
+    return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [wake, bed]);
 
