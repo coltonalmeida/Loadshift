@@ -52,34 +52,39 @@ export default function MethodSection() {
             Measuring the margin
           </h3>
           <p>
-            For every hour when Ontario demand rose, we ask which fuels rose
-            with it. A regression of each fuel&rsquo;s ramp against the demand
-            ramp (per season and time of day, conditioned on net demand) gives
-            the marginal mix, and pairing it with lifecycle emission factors
-            gives grams per kilowatt hour. The method follows Siler-Evans,
-            Azevedo and Morgan (2012), <em>Environmental Science &amp;
-            Technology</em> 46(9).
+            Every hour, Ontario&rsquo;s electricity demand rises or falls. We
+            look at which power plants moved with it — when the province
+            needed more power, who actually produced it? Doing that across
+            years of hourly data, separately for each season and time of day,
+            shows which fuels answer the next kilowatt-hour. Multiply that mix
+            by how much CO₂ each fuel emits over its lifetime and you get
+            grams per kilowatt-hour. This is the standard method, from
+            Siler-Evans, Azevedo and Morgan (2012), <em>Environmental Science
+            &amp; Technology</em> 46(9).
           </p>
           <p>
-            The forecast is machine learning end to end: LightGBM
-            gradient-boosted decision trees trained on roughly 23,000 hours
-            (2.6 years) of IESO grid history, using 14 features across
-            calendar, forecast weather, and day-old lags, so every input is
-            genuinely available 24 hours ahead. It is validated on a
-            chronological 60-day holdout against an honest baseline,
-            &ldquo;same hour last week,&rdquo; and beats it by 42%.
+            To predict tomorrow, we train a machine learning model —
+            LightGBM, a decision-tree ensemble — on about 23,000 hours
+            (2.6 years) of Ontario grid history. It reads 14 inputs: the
+            calendar, the weather forecast, and grid readings from a day
+            earlier, so nothing it needs is unavailable 24 hours ahead. We test
+            it on 60 days it never saw during training, against a fair
+            benchmark — just guessing &ldquo;whatever it was this hour last
+            week&rdquo; — and it beats that guess by 42%.
           </p>
           <p>
-            Dollar figures use the OEB regulated Time-of-Use and Ultra-Low
-            Overnight rate schedules effective November 2025, applied hour by
-            hour to the same windows the carbon optimizer picks. In Ontario the
-            cheap hours and the clean hours largely coincide overnight, which
-            is why one shift pays twice.
+            The dollar savings use Ontario&rsquo;s official electricity prices
+            — the OEB&rsquo;s Time-of-Use and Ultra-Low Overnight rate
+            plans, as of November 2025 — applied hour by hour to the same
+            times the carbon optimizer picks. Ontario&rsquo;s cheapest hours
+            and its cleanest hours mostly overlap overnight, which is why
+            moving one load pays off twice.
           </p>
           <p>
-            As a sanity check, our independently computed average intensity
-            tracks Electricity Maps&rsquo; Ontario figure within 2.1 g/kWh
-            (correlation 0.91) on the same lifecycle basis.
+            As a sanity check, we compare our numbers against Electricity Maps,
+            an independent source. Our Ontario average intensity lands within
+            2.1 g/kWh of theirs, and the two move together closely (correlation
+            0.91), measured the same way.
           </p>
         </div>
 
