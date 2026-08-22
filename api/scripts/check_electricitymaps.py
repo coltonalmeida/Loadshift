@@ -17,7 +17,7 @@ if not TOKEN:
     sys.exit("set ELECTRICITYMAPS_TOKEN (free tier: https://api-portal.electricitymaps.com)")
 
 r = requests.get(
-    "https://api.electricitymap.org/v3/carbon-intensity/history",
+    "https://api.electricitymaps.com/v4/carbon-intensity/history",
     params={"zone": "CA-ON"}, headers={"auth-token": TOKEN}, timeout=30,
 )
 r.raise_for_status()
