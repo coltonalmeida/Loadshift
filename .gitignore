@@ -19,3 +19,9 @@ web/out/
 # Misc
 .DS_Store
 *.log
+
+# Internal docs kept local only
+README.md
+PLAN.md
+CLAUDE.md
+Ignition-Hacks-V7-Hacker-Package.pdf
