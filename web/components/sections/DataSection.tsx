@@ -1,75 +1,22 @@
 "use client";
 import { useCallback, useEffect, useRef, useState } from "react";
-import {
-  Bar,
-  BarChart,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from "recharts";
+import AiReportCard, { type ReportState } from "@/components/data/AiReportCard";
+import GeminiKeyPanel from "@/components/data/GeminiKeyPanel";
+import StatTiles from "@/components/data/StatTiles";
+import UsageCharts from "@/components/data/UsageCharts";
 import {
   AiReport,
   askInsights,
   fetchAiReport,
   fetchSample,
   GreenButtonResult,
-  hourLabel,
   RateLimited,
   uploadGreenButton,
 } from "@/lib/api";
 import { useGeminiKey } from "@/lib/geminiKey";
-import { fmtKm, treeSeedlings } from "@/lib/impact";
 
-function MonthTooltip({
-  active,
-  payload,
-}: {
-  active?: boolean;
-  payload?: { payload: { month: string; kg: number; kwh: number } }[];
-}) {
-  if (!active || !payload?.length) return null;
-  const d = payload[0].payload;
-  return (
-    <div className="mono rounded-md border border-line bg-surface px-3 py-2 text-xs shadow-sm">
-      <div className="text-ink-2">{d.month}</div>
-      <div className="text-spruce-deep">{d.kg} kg CO₂</div>
-      <div className="text-ink-3">{d.kwh} kWh</div>
-    </div>
-  );
-}
-
-function HourTooltip({
-  active,
-  payload,
-}: {
-  active?: boolean;
-  payload?: { payload: { h: number; kwh: number } }[];
-}) {
-  if (!active || !payload?.length) return null;
-  const d = payload[0].payload;
-  return (
-    <div className="mono rounded-md border border-line bg-surface px-3 py-2 text-xs shadow-sm">
-      <div className="text-ink-2">{hourLabel(d.h)}</div>
-      <div className="text-spruce-deep">{d.kwh} kWh avg</div>
-    </div>
-  );
-}
-
-function Tile({ label, value, sub, accent }: {
-  label: string; value: string; sub?: string; accent?: boolean;
-}) {
-  return (
-    <div className="rounded-xl border border-line bg-surface p-5">
-      <div className="text-xs font-medium uppercase tracking-wide text-ink-3">{label}</div>
-      <div className={`mono mt-1 text-2xl ${accent ? "text-spruce-deep" : "text-ink"}`}>
-        {value}
-      </div>
-      {sub && <div className="mt-0.5 text-[11px] leading-snug text-ink-3">{sub}</div>}
-    </div>
-  );
-}
-
+/** Green Button upload and analysis. Owns the state; the tiles, charts, report
+ *  and key panel below it are presentation. */
 export default function DataSection() {
   const [result, setResult] = useState<GreenButtonResult | null>(null);
   const [busy, setBusy] = useState(false);
@@ -78,9 +25,8 @@ export default function DataSection() {
   const [answer, setAnswer] = useState<string | null>(null);
   const [asking, setAsking] = useState(false);
   const [report, setReport] = useState<AiReport | null>(null);
-  const [reportState, setReportState] = useState<"idle" | "loading" | "failed">("idle");
+  const [reportState, setReportState] = useState<ReportState>("idle");
   const [apiKey, setApiKey] = useGeminiKey();
-  const [keyDraft, setKeyDraft] = useState("");
   const [keyOpen, setKeyOpen] = useState(false);
   const [remaining, setRemaining] = useState<number | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -151,23 +97,6 @@ export default function DataSection() {
     }
   }
 
-  function saveKey() {
-    setApiKey(keyDraft);
-    setKeyDraft("");
-  }
-
-  // Stated before they hit the wall, not after.
-  const allowance = apiKey
-    ? "Running on your own key, so there is no shared limit."
-    : remaining === null
-    ? null
-    : remaining > 0
-    ? `Shared key: about ${remaining} question${remaining === 1 ? "" : "s"} left. Add your own key below for more.`
-    : "The shared key is used up. Add your own key below to keep asking.";
-
-  const timingPct = result ? Math.round(Math.abs(result.timing_score - 1) * 100) : 0;
-  const uloCheaper = result ? result.cost_ulo < result.cost_tou : false;
-
   return (
     <div>
       <div>
@@ -211,243 +140,28 @@ export default function DataSection() {
 
       {result && (
         <div className="mt-10 space-y-6">
-          {/* headline numbers: carbon + money */}
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-            <Tile label="Emissions last year" value={`${result.actual_kg} kg CO₂`} />
-            <Tile
-              label="Recoverable by shifting"
-              value={`${result.saved_kg} kg (${result.pct_saving}%)`}
-              sub={`like ${fmtKm(result.saved_kg)} of driving, or ${treeSeedlings(result.saved_kg).toFixed(1)} tree seedlings grown a decade`}
-              accent
+          <StatTiles result={result} />
+          <UsageCharts result={result} />
+
+          <AiReportCard
+            report={report}
+            state={reportState}
+            hasOwnKey={Boolean(apiKey)}
+            remaining={remaining}
+            question={question}
+            onQuestionChange={setQuestion}
+            onAsk={ask}
+            asking={asking}
+            answer={answer}
+          >
+            <GeminiKeyPanel
+              hasKey={Boolean(apiKey)}
+              open={keyOpen}
+              onToggle={() => setKeyOpen(!keyOpen)}
+              onSave={setApiKey}
+              onClear={() => setApiKey("")}
             />
-            <Tile
-              label="Bill savings in the same shift"
-              value={`$${result.saved_tou.toFixed(0)}/yr`}
-              sub={`on top of a $${result.cost_tou.toFixed(0)} year at Time-of-Use rates`}
-              accent
-            />
-          </div>
-
-          {/* habits */}
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-            <Tile
-              label="Timing score"
-              value={result.timing_score.toFixed(2)}
-              sub={
-                result.timing_score > 1.005
-                  ? `your usage lands in hours ${timingPct}% dirtier than the grid's average hour`
-                  : result.timing_score < 0.995
-                  ? `your usage already favors cleaner hours (${timingPct}% better than average)`
-                  : "your timing is about neutral; the recoverable savings above are your upside"
-              }
-            />
-            <Tile
-              label="Evening peak share"
-              value={`${Math.round(result.evening_peak_share * 100)}%`}
-              sub="of your usage falls 5 to 9 PM, the dirtiest and priciest window"
-            />
-            <Tile
-              label="Rate plan check"
-              value={uloCheaper ? "ULO wins" : "TOU wins"}
-              sub={`Time-of-Use $${result.cost_tou.toFixed(0)} vs Ultra-Low Overnight $${result.cost_ulo.toFixed(0)} for your actual pattern`}
-            />
-          </div>
-
-          {/* charts */}
-          <div className="grid gap-6 lg:grid-cols-2">
-            <div className="rounded-xl border border-line bg-surface p-5">
-              <h3 className="mb-4 text-sm font-medium text-ink">
-                Your average day, hour by hour
-              </h3>
-              <div className="h-[180px]">
-                <ResponsiveContainer>
-                  <BarChart
-                    data={result.usage_by_hour.map((kwh, h) => ({ h, kwh }))}
-                    margin={{ top: 4, right: 0, left: -22, bottom: 0 }}
-                    barCategoryGap={2}
-                  >
-                    <XAxis
-                      dataKey="h"
-                      tickLine={false}
-                      axisLine={{ stroke: "var(--line)" }}
-                      ticks={[0, 6, 12, 18, 23]}
-                      tickFormatter={(h: number) => hourLabel(h)}
-                      tick={{ fill: "var(--ink-3)", fontSize: 10, fontFamily: "var(--font-spline-mono)" }}
-                    />
-                    <YAxis
-                      tickLine={false}
-                      axisLine={false}
-                      tick={{ fill: "var(--ink-3)", fontSize: 10, fontFamily: "var(--font-spline-mono)" }}
-                    />
-                    <Tooltip content={<HourTooltip />} cursor={{ fill: "var(--surface-2)" }} />
-                    <Bar dataKey="kwh" fill="var(--spruce)" radius={[3, 3, 0, 0]} />
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-              <p className="mt-2 text-[11px] text-ink-3">
-                kWh per hour, averaged across the year. The 5 to 9 PM window is
-                where shifting pays most.
-              </p>
-            </div>
-
-            <div className="rounded-xl border border-line bg-surface p-5">
-              <h3 className="mb-4 text-sm font-medium text-ink">
-                Monthly emissions, weighted by marginal intensity
-              </h3>
-              <div className="h-[180px]">
-                <ResponsiveContainer>
-                  <BarChart
-                    data={result.monthly}
-                    margin={{ top: 4, right: 0, left: -18, bottom: 0 }}
-                    barCategoryGap={2}
-                  >
-                    <XAxis
-                      dataKey="month"
-                      tickLine={false}
-                      axisLine={{ stroke: "var(--line)" }}
-                      tick={{ fill: "var(--ink-3)", fontSize: 10, fontFamily: "var(--font-spline-mono)" }}
-                      tickFormatter={(m: string) => m.slice(5)}
-                    />
-                    <YAxis
-                      tickLine={false}
-                      axisLine={false}
-                      tick={{ fill: "var(--ink-3)", fontSize: 10, fontFamily: "var(--font-spline-mono)" }}
-                    />
-                    <Tooltip content={<MonthTooltip />} cursor={{ fill: "var(--surface-2)" }} />
-                    <Bar dataKey="kg" fill="var(--spruce)" radius={[4, 4, 0, 0]} />
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-              <p className="mt-2 text-[11px] text-ink-3">
-                Heaviest single days: {result.worst_days.map((d) => `${d.date} (${d.kg} kg)`).join(", ")}.
-              </p>
-            </div>
-          </div>
-
-          {/* AI report: its own request, so it fills in behind the numbers */}
-          <div className="rounded-xl border border-spruce/30 bg-surface p-6">
-            <div className="mb-3 flex items-center justify-between gap-2">
-              <h3 className="text-sm font-medium text-ink">Your energy report</h3>
-              <span className="mono rounded-full border border-line px-2.5 py-0.5 text-[10px] text-ink-3">
-                AI-generated · Gemini
-              </span>
-            </div>
-
-            {reportState === "loading" && (
-              <div className="space-y-2" aria-live="polite">
-                <p className="text-sm text-ink-3">Writing your report…</p>
-                <div className="h-3 w-full max-w-[60ch] animate-pulse rounded bg-surface-2" />
-                <div className="h-3 w-full max-w-[52ch] animate-pulse rounded bg-surface-2" />
-                <div className="h-3 w-full max-w-[38ch] animate-pulse rounded bg-surface-2" />
-              </div>
-            )}
-
-            {reportState === "failed" && (
-              <p className="max-w-[72ch] text-sm leading-relaxed text-ink-2">
-                The report is unavailable right now; the shared quota may be
-                spent. Every number above is computed on our own server and
-                stands without it. Add your own Gemini key below to generate one.
-              </p>
-            )}
-
-            {reportState === "idle" && report && (
-              <>
-                <p className="max-w-[72ch] text-sm leading-relaxed text-ink-2">
-                  {report.summary}
-                </p>
-                <ol className="mt-4 space-y-2">
-                  {report.recommendations.map((r, i) => (
-                    <li key={i} className="flex gap-3 text-sm leading-relaxed text-ink-2">
-                      <span className="mono text-spruce-deep">{i + 1}.</span>
-                      <span>{r}</span>
-                    </li>
-                  ))}
-                </ol>
-              </>
-            )}
-
-            {/* follow-up: stands on its own, even if the report failed */}
-            <div className="mt-5 border-t border-line pt-4">
-              <label htmlFor="ask" className="text-xs text-ink-3">
-                Ask a follow-up about your data
-              </label>
-              <div className="mt-2 flex gap-2">
-                <input
-                  id="ask"
-                  value={question}
-                  onChange={(e) => setQuestion(e.target.value)}
-                  onKeyDown={(e) => e.key === "Enter" && ask()}
-                  placeholder="Why is my evening usage a problem?"
-                  maxLength={300}
-                  className="w-full max-w-md rounded-md border border-line bg-ground px-3 py-2 text-sm text-ink outline-none placeholder:text-ink-3 focus:border-spruce"
-                />
-                <button
-                  onClick={ask}
-                  disabled={asking || !question.trim()}
-                  className="rounded-md bg-ink px-4 py-2 text-sm text-surface transition-transform active:scale-[0.98] disabled:opacity-40"
-                >
-                  {asking ? "Thinking…" : "Ask"}
-                </button>
-              </div>
-              {allowance && (
-                <p className="mt-2 text-[11px] leading-relaxed text-ink-3">
-                  {allowance}
-                </p>
-              )}
-              {answer && (
-                <p className="mt-3 max-w-[72ch] whitespace-pre-line rounded-md bg-ground p-3 text-sm leading-relaxed text-ink-2">
-                  {answer}
-                </p>
-              )}
-            </div>
-
-            {/* bring your own key */}
-            <div className="mt-4 border-t border-line pt-4">
-              <button
-                onClick={() => setKeyOpen(!keyOpen)}
-                className="text-xs text-ink-3 underline-offset-2 hover:text-ink-2 hover:underline"
-              >
-                {apiKey
-                  ? "Using your own Gemini API key"
-                  : "Use your own Gemini API key"}
-              </button>
-              {keyOpen && (
-                <div className="mt-3">
-                  <div className="flex flex-wrap gap-2">
-                    <input
-                      type="password"
-                      value={keyDraft}
-                      onChange={(e) => setKeyDraft(e.target.value)}
-                      onKeyDown={(e) => e.key === "Enter" && saveKey()}
-                      placeholder={apiKey ? "Saved. Paste a new key to replace it." : "Paste your key"}
-                      autoComplete="off"
-                      spellCheck={false}
-                      className="w-full max-w-md rounded-md border border-line bg-ground px-3 py-2 text-sm text-ink outline-none placeholder:text-ink-3 focus:border-spruce"
-                    />
-                    <button
-                      onClick={saveKey}
-                      disabled={!keyDraft.trim()}
-                      className="rounded-md bg-ink px-4 py-2 text-sm text-surface transition-transform active:scale-[0.98] disabled:opacity-40"
-                    >
-                      Save
-                    </button>
-                    {apiKey && (
-                      <button
-                        onClick={() => setApiKey("")}
-                        className="rounded-md border border-line px-4 py-2 text-sm text-ink-2 transition-colors hover:border-ink-3"
-                      >
-                        Clear
-                      </button>
-                    )}
-                  </div>
-                  <p className="mt-2 max-w-[72ch] text-[11px] leading-relaxed text-ink-3">
-                    API keys are never written to our server or its logs. A free
-                    key takes a minute at aistudio.google.com/apikey
-                  </p>
-                </div>
-              )}
-            </div>
-          </div>
+          </AiReportCard>
 
           <p className="max-w-[78ch] text-xs leading-relaxed text-ink-3">
             {result.sample ? "This is a synthetic sample household. " : ""}
