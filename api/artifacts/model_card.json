@@ -1,0 +1,40 @@
+{
+ "target": "marginal carbon intensity (gCO2eq/kWh), 24h-ahead",
+ "model": "LightGBM, direct single-model, all lags >= 24h (causal)",
+ "features": [
+  "hour_sin",
+  "hour_cos",
+  "dow",
+  "month",
+  "is_weekend",
+  "temperature_2m",
+  "wind_speed_100m",
+  "cloud_cover",
+  "shortwave_radiation",
+  "mef_lag24",
+  "mef_lag168",
+  "demand_lag24",
+  "demand_lag168",
+  "mef_roll24"
+ ],
+ "train_rows": 20784,
+ "test_days": 60,
+ "test_range": [
+  "2026-06-22 05:00:00",
+  "2026-08-21 04:00:00"
+ ],
+ "mae_model": 13.51,
+ "mae_baseline_seasonal_naive_168h": 23.21,
+ "improvement_pct": 41.8,
+ "test_r2": 0.555,
+ "target_mean": 209.1,
+ "emission_factors_gco2_kwh": {
+  "GAS": 490,
+  "BIOFUEL": 230,
+  "SOLAR": 48,
+  "HYDRO": 24,
+  "NUCLEAR": 12,
+  "WIND": 11
+ },
+ "best_iteration": 296
+}
