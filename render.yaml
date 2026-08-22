@@ -39,7 +39,7 @@ services:
   # --------------------------------------------------------------- key value
   - type: keyvalue
     name: loadshift-cache
-    region: ohio
+    region: oregon
     plan: starter
     # The forecast is the whole product. It must never be evicted to make room
     # for an insight-cache entry.
@@ -54,7 +54,7 @@ services:
     name: loadshift-api
     runtime: python
     rootDir: api
-    region: ohio
+    region: oregon
     plan: starter
     healthCheckPath: /api/health
     autoDeployTrigger: commit
@@ -79,7 +79,7 @@ services:
     name: loadshift-refresh
     runtime: python
     rootDir: api
-    region: ohio
+    region: oregon
     plan: starter
     # Seven past the hour: IESO publishes on the hour, and arriving early just
     # rebuilds on the previous hour's file.
@@ -99,16 +99,17 @@ services:
     name: loadshift-web
     runtime: node
     rootDir: web
-    region: ohio
+    region: oregon
     plan: starter
     healthCheckPath: /
     autoDeployTrigger: commit
     buildCommand: npm ci && npm run build
     startCommand: npm start
     envVars:
-      # Consumed by next.config.ts to rewrite /api/* onto the private network.
-      # `host` is the private hostname, not the public onrender.com URL — that
-      # is the point: this hop never touches the public internet.
+      # Read at request time by web/app/api/[...path]/route.ts, which proxies
+      # /api/* onto the private network. `host` is the private hostname, not the
+      # public onrender.com URL — that is the point: this hop never touches the
+      # public internet.
       - key: API_HOST
         fromService:
           name: loadshift-api
