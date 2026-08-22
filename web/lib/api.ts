@@ -1,4 +1,10 @@
-const BASE = process.env.NEXT_PUBLIC_API_BASE ?? "http://localhost:8000";
+// Empty in production on Render: the browser calls same-origin /api/*, which
+// next.config.ts rewrites onto loadshift-api over Render's private network.
+// The Vercel fallback deployment sets NEXT_PUBLIC_API_BASE to the public API
+// origin instead; dev keeps the localhost default so `npm run dev` needs no env.
+const BASE =
+  process.env.NEXT_PUBLIC_API_BASE ??
+  (process.env.NODE_ENV === "development" ? "http://localhost:8000" : "");
 
 export interface NowData {
   ts: string;
@@ -111,6 +117,30 @@ export interface ModelCard {
   };
 }
 
+/** Deployment facts, straight from Render's injected env plus the cron's own
+ *  record of the last rebuild. Rendered in the footer so the architecture is
+ *  inspectable rather than asserted. */
+export interface Platform {
+  platform: "render" | "local";
+  service: string | null;
+  service_type: string | null;
+  instance: string | null;
+  commit: string | null;
+  branch: string | null;
+  is_preview: boolean;
+  cache_backend: string;
+  cache_age_s: number | null;
+  refresh: {
+    by_service: string | null;
+    by_commit: string | null;
+    ran_at: string | null;
+    ok: boolean | null;
+    duration_s: number | null;
+    generated_at: string | null;
+    weather_source: string | null;
+  };
+}
+
 async function get<T>(path: string): Promise<T> {
   const r = await fetch(`${BASE}${path}`, { cache: "no-store" });
   if (!r.ok) throw new Error(`${path}: ${r.status}`);
@@ -120,6 +150,7 @@ async function get<T>(path: string): Promise<T> {
 export const fetchForecast = () => get<Forecast>("/api/forecast");
 export const fetchModelCard = () => get<ModelCard>("/api/model-card");
 export const fetchSample = () => get<GreenButtonResult>("/api/greenbutton/sample");
+export const fetchPlatform = () => get<Platform>("/api/platform");
 
 export async function postSchedule(body: {
   appliance?: string;
