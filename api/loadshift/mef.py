@@ -16,11 +16,11 @@ import pandas as pd
 
 from . import config, dataset
 
-ARTIFACTS = Path(__file__).resolve().parents[1] / "artifacts"
-
 N_CENTERS = 19          # window centres at quantiles 0.05 .. 0.95
 HALF_WIDTH = 0.125      # each window spans +/- 12.5 quantile points (overlapping)
-MIN_WINDOW_N = 80  # up-deltas halve the sample      # skip windows with fewer delta observations
+# Minimum delta observations per window. Keeping only up-deltas (see _deltas)
+# halves the sample, so this is the floor at which a slope is worth trusting.
+MIN_WINDOW_N = 80
 
 
 def _deltas(df: pd.DataFrame) -> pd.DataFrame:
@@ -109,7 +109,7 @@ class MefCurve:
 
     @classmethod
     def load(cls, path: Path | None = None) -> "MefCurve":
-        p = path or ARTIFACTS / "mef_curve.json"
+        p = path or config.ARTIFACTS / "mef_curve.json"
         return cls(json.loads(p.read_text()))
 
     def mef(self, bucket: str, net_demand: float) -> float:
@@ -129,7 +129,7 @@ class MefCurve:
 
 
 def save(payload: dict) -> Path:
-    ARTIFACTS.mkdir(exist_ok=True)
-    p = ARTIFACTS / "mef_curve.json"
+    config.ARTIFACTS.mkdir(exist_ok=True)
+    p = config.ARTIFACTS / "mef_curve.json"
     p.write_text(json.dumps(payload, indent=1))
     return p

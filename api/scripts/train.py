@@ -5,10 +5,10 @@ from pathlib import Path
 import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from loadshift import mef, model
+from loadshift import config, mef, model
 
 if __name__ == "__main__":
-    df = pd.read_parquet(Path(__file__).resolve().parents[1] / "data" / "dataset.parquet")
+    df = pd.read_parquet(config.DATA / "dataset.parquet")
     label = mef.MefCurve.load().label(df)
     card = model.train(df, label)
     print(f"MAE  model : {card['mae_model']:.2f} g")

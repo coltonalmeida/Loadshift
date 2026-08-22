@@ -1,12 +1,8 @@
 """Parser invariants. Uses files cached in api/data/ by earlier pipeline runs."""
-import sys
-from pathlib import Path
-
 import pandas as pd
 import pytest
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from loadshift import config, dataset, ieso
+from loadshift import config, ieso
 
 
 def test_fuel_mix_namespace_and_shape():
@@ -31,7 +27,7 @@ def test_demand_csv_columns():
 
 
 def test_dataset_hourly_and_dense():
-    p = Path(__file__).resolve().parents[1] / "data" / "dataset.parquet"
+    p = config.DATA / "dataset.parquet"
     if not p.exists():
         pytest.skip("run scripts/build_dataset.py first")
     df = pd.read_parquet(p)

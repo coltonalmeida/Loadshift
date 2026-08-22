@@ -8,10 +8,11 @@ from pathlib import Path
 import pandas as pd
 import requests
 
+from . import config, kv
+
 WEATHER_COLS = ["temperature_2m", "wind_speed_100m", "cloud_cover", "shortwave_radiation"]
 
-DATA_DIR = Path(__file__).resolve().parents[1] / "data"
-ARTIFACTS_DIR = Path(__file__).resolve().parents[1] / "artifacts"
+DATA_DIR = config.DATA
 
 # Last good live forecast. Lets an hourly refresh that hits a rate limit reuse
 # real weather instead of failing the whole rebuild.
@@ -21,7 +22,7 @@ LAST_GOOD = DATA_DIR / "weather_forecast_last.json"
 # that boots straight into an Open-Meteo 429 has no last-good to fall back on
 # and would serve 503 until the limit clears. This ships in the repo so the
 # forecast degrades loudly instead of disappearing.
-SEED = ARTIFACTS_DIR / "weather_seed.json"
+SEED = config.ARTIFACTS / "weather_seed.json"
 
 # Beyond this the stored diurnal shape is too old to stand in for live weather.
 FALLBACK_MAX_AGE_H = 72
@@ -35,8 +36,6 @@ def _to_frame(hourly: dict) -> pd.DataFrame:
 
 def history(start: str, end: str) -> pd.DataFrame:
     """Hourly weather archive [start, end], UTC index. Cached to api/data/."""
-    from . import config
-
     DATA_DIR.mkdir(exist_ok=True)
     cache = DATA_DIR / f"weather_{start}_{end}.json"
     if cache.exists():
@@ -55,8 +54,6 @@ def history(start: str, end: str) -> pd.DataFrame:
 def _fetch_live(days: int, attempts: int) -> dict:
     """Open-Meteo forecast payload. Retries: 429s here are usually transient
     bursts on Render's shared egress IP, not an exhausted daily quota."""
-    from . import config
-
     url = config.OPEN_METEO_FORECAST.format(days=days).replace(
         "timezone=America%2FToronto", "timezone=UTC"
     )
@@ -74,8 +71,6 @@ def _fetch_live(days: int, attempts: int) -> dict:
 
 
 def _store_last_good(payload: dict) -> None:
-    from . import kv
-
     blob = {"fetched_at": _utcnow().isoformat(), "payload": payload}
     # Key Value first: api/data/ is wiped on every Render deploy, so the disk
     # copy below only ever helps a restart in place. Both are best-effort.
@@ -102,8 +97,6 @@ def _load_stored(path: Path) -> tuple[pd.DataFrame, float] | None:
 
 def _load_kv() -> tuple[pd.DataFrame, float] | None:
     """Last-good snapshot from Render Key Value, the tier that survives deploys."""
-    from . import kv
-
     return _from_blob(kv.get_json(kv.WEATHER_KEY))
 
 

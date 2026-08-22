@@ -11,6 +11,7 @@ import pandas as pd
 import requests
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from loadshift import config
 
 TOKEN = os.environ.get("ELECTRICITYMAPS_TOKEN")
 if not TOKEN:
@@ -25,7 +26,7 @@ em = pd.DataFrame(r.json()["history"])
 em["ts"] = pd.to_datetime(em["datetime"]).dt.tz_localize(None)
 em = em.set_index("ts")["carbonIntensity"]
 
-ours = pd.read_parquet(Path(__file__).resolve().parents[1] / "artifacts" / "mef_history.parquet")
+ours = pd.read_parquet(config.ARTIFACTS / "mef_history.parquet")
 joined = ours[["avg_intensity"]].join(em.rename("em"), how="inner").dropna()
 if joined.empty:
     sys.exit("no overlapping hours returned")

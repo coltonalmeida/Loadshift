@@ -3,7 +3,7 @@
 Requests NEVER trigger this. The Render cron job `loadshift-refresh` calls
 refresh() hourly (see refresh_job.py); the web service only ever reads. On any
 upstream failure the last-known-good payload keeps being served with
-stale=true â€” never an error page.
+stale=true — never an error page.
 
 Read order is Render Key Value first, then process memory, then local disk.
 KV is what makes a freshly deployed instance warm: the container filesystem is
@@ -15,13 +15,12 @@ import datetime as dt
 import json
 import threading
 import time
-from pathlib import Path
 
 import pandas as pd
 
 from . import config, dataset, ieso, kv, weather
 
-CACHE_PATH = Path(__file__).resolve().parents[1] / "data" / "cache_forecast.json"
+CACHE_PATH = config.DATA / "cache_forecast.json"
 
 # How long a web instance may reuse its in-process copy before re-reading Key
 # Value. The cron writes hourly, so a minute of skew is invisible to a visitor
@@ -67,9 +66,10 @@ def _recent_frame(hours: int = 240) -> pd.DataFrame:
 
 
 def _build_payload() -> dict:
-    # Imported here, not at module scope: `model` pulls in LightGBM, and only
-    # the cron job ever reaches this function. The web service imports cache.py
-    # to READ, and must not pay for a training-time dependency to do it.
+    # The one deferred import in this package, and it is load-bearing: `model`
+    # pulls in LightGBM, and only the cron job ever reaches this function. The
+    # web service imports cache.py to READ, and must not pay for a training-time
+    # dependency to do it. Everything else imports at module scope.
     from . import mef, model
 
     curve = mef.MefCurve.load()
@@ -113,7 +113,7 @@ def _build_payload() -> dict:
     card = json.loads((config.ARTIFACTS / "model_card.json").read_text())
     mae = card["mae_model"]
 
-    # Average intensity forecast: seasonal naive (same hour yesterday) â€” for
+    # Average intensity forecast: seasonal naive (same hour yesterday) — for
     # the avg-vs-marginal comparison line only, labelled as an estimate.
     avg_naive = lagged(recent["avg_intensity"], 24)
 
@@ -240,8 +240,13 @@ def _from_kv() -> dict | None:
     return kv.get_json(kv.FORECAST_KEY)
 
 
-def forecast_series() -> pd.Series:
-    payload = get()
+def forecast_series(payload: dict | None = None) -> pd.Series:
+    """Hourly marginal forecast as a Series, from `payload` or the current cache.
+
+    Callers that also need other fields off the payload should read it once and
+    pass it in, so the series and those fields describe the same forecast.
+    """
+    payload = payload or get()
     if not payload:
         raise RuntimeError("cache empty")
     idx = pd.to_datetime([h["ts"].rstrip("Z") for h in payload["hours"]])

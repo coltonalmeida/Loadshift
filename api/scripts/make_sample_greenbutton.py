@@ -11,6 +11,7 @@ import numpy as np
 import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from loadshift import config
 
 PROFILE = sys.argv[1] if len(sys.argv) > 1 else "base"
 rng = np.random.default_rng(42 if PROFILE == "base" else 7)
@@ -46,7 +47,7 @@ for e, v in zip(epoch, wh):
 parts.append('</espi:IntervalBlock></content></entry></feed>')
 
 name = "sample_greenbutton.xml" if PROFILE == "base" else "demo_upload_greenbutton.xml"
-out = Path(__file__).resolve().parents[1] / "samples" / name
+out = config.SAMPLES / name
 out.parent.mkdir(exist_ok=True)
 out.write_text("".join(parts))
 print(f"{len(idx)} hourly readings, {out.stat().st_size//1024} KB -> {out}")

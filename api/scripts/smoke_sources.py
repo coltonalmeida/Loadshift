@@ -1,4 +1,5 @@
 """Hit all four upstream data sources and print row counts. Run at the start of every phase."""
+import datetime
 import sys
 from pathlib import Path
 from xml.etree import ElementTree as ET
@@ -30,7 +31,6 @@ def gen_capability():
 
 
 def gen_by_fuel():
-    import datetime
     year = datetime.date.today().year
     r = requests.get(config.GEN_BY_FUEL_URL.format(year=year), timeout=60)
     r.raise_for_status()
@@ -42,7 +42,6 @@ def gen_by_fuel():
 
 
 def demand():
-    import datetime
     year = datetime.date.today().year
     r = requests.get(config.DEMAND_URL.format(year=year), timeout=30)
     r.raise_for_status()

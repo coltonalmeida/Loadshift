@@ -3,11 +3,11 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from loadshift import dataset
+from loadshift import config, dataset
 
 if __name__ == "__main__":
     df = dataset.build()
-    out = Path(__file__).resolve().parents[1] / "data" / "dataset.parquet"
+    out = config.DATA / "dataset.parquet"
     df.to_parquet(out)
 
     print(f"rows: {len(df)}   {df.index.min()} -> {df.index.max()} (UTC)")

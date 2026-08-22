@@ -1,10 +1,21 @@
-"""Shared constants: URLs, namespaces, emission factors, coordinates."""
+"""Shared constants: paths, URLs, namespaces, emission factors, coordinates."""
 from pathlib import Path
 
-# Committed model artifacts. Lives here, not in model.py, so the web service can
+# The api/ directory. Every path below hangs off it, so the layout is described
+# in one place instead of being rebuilt with parents[1] in each module.
+ROOT = Path(__file__).resolve().parents[1]
+
+# Committed model artifacts. Named here, not in model.py, so the web service can
 # name the directory without importing LightGBM — only the cron job trains or
 # predicts, and that import costs ~150MB of RSS in a process that never uses it.
-ARTIFACTS = Path(__file__).resolve().parents[1] / "artifacts"
+ARTIFACTS = ROOT / "artifacts"
+
+# Raw downloads and the on-disk cache tier. Ephemeral: gitignored, and wiped by
+# every Render deploy, which is why Key Value is the durable tier.
+DATA = ROOT / "data"
+
+# Bundled Green Button files backing the "Try sample data" path.
+SAMPLES = ROOT / "samples"
 
 IESO_BASE = "https://reports-public.ieso.ca/public"
 

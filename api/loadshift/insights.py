@@ -14,10 +14,11 @@ import hashlib
 import json
 import os
 import re
-import time
-from collections import OrderedDict, deque
+from collections import OrderedDict
 
 import requests
+
+from . import kv
 
 MODEL = "gemini-3.5-flash-lite"
 URL = f"https://generativelanguage.googleapis.com/v1beta/models/{MODEL}:generateContent"
@@ -164,8 +165,6 @@ def _cached(key: str):
         _cache.move_to_end(key)
         return hit
     # L2: written by whichever instance generated it, survives redeploys.
-    from . import kv
-
     blob = kv.get_json(kv.insight_key(key))
     if blob is None:
         return None
@@ -183,8 +182,6 @@ def _remember(key: str, value):
 
 
 def _store(key: str, value):
-    from . import kv
-
     kv.set_json(kv.insight_key(key), {"v": value}, ttl_s=_KV_TTL_S)
     return _remember(key, value)
 

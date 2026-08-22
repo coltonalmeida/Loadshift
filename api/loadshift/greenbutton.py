@@ -10,21 +10,19 @@ plans, so results carry both grams and dollars.
 """
 from __future__ import annotations
 
-from pathlib import Path
 from xml.etree import ElementTree as ET
 from zoneinfo import ZoneInfo
 
 import pandas as pd
 
-from . import pricing
+from . import config, pricing
 
 ESPI_NS = "http://naesb.org/espi"
 DEFERRABLE_SHARE = 0.30
 CLEAN_WINDOW_H = 4
 TZ = ZoneInfo("America/Toronto")
 
-ARTIFACTS = Path(__file__).resolve().parents[1] / "artifacts"
-SAMPLE_PATH = Path(__file__).resolve().parents[1] / "samples" / "sample_greenbutton.xml"
+SAMPLE_PATH = config.SAMPLES / "sample_greenbutton.xml"
 
 
 def parse(xml_bytes: bytes) -> pd.Series:
@@ -46,7 +44,7 @@ def parse(xml_bytes: bytes) -> pd.Series:
 
 
 def analyze(kwh: pd.Series) -> dict:
-    hist = pd.read_parquet(ARTIFACTS / "mef_history.parquet")
+    hist = pd.read_parquet(config.ARTIFACTS / "mef_history.parquet")
     joined = kwh.to_frame().join(hist, how="inner").dropna()
     if len(joined) < 24 * 7:
         raise ValueError("less than a week of overlap with our MEF history (2024+)")

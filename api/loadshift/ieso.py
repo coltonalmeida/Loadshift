@@ -8,7 +8,7 @@ convention aside, we treat hour h as the interval starting at h-1).
 from __future__ import annotations
 
 import io
-from pathlib import Path
+import time
 from xml.etree import ElementTree as ET
 
 import pandas as pd
@@ -16,7 +16,7 @@ import requests
 
 from . import config
 
-DATA_DIR = Path(__file__).resolve().parents[1] / "data"
+DATA_DIR = config.DATA
 
 EST_OFFSET_H = 5  # IESO fixed EST -> UTC
 
@@ -31,7 +31,6 @@ def _fetch(url: str, cache_name: str | None = None, max_age_s: float | None = No
         DATA_DIR.mkdir(exist_ok=True)
         path = DATA_DIR / cache_name
         if path.exists():
-            import time
             age = time.time() - path.stat().st_mtime
             if max_age_s is None or age < max_age_s:
                 return path.read_bytes()

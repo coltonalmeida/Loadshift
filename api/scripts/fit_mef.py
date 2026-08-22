@@ -6,10 +6,10 @@ import numpy as np
 import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from loadshift import mef
+from loadshift import config, mef
 
 if __name__ == "__main__":
-    df = pd.read_parquet(Path(__file__).resolve().parents[1] / "data" / "dataset.parquet")
+    df = pd.read_parquet(config.DATA / "dataset.parquet")
     payload = mef.fit(df)
     path = mef.save(payload)
 
@@ -42,6 +42,6 @@ if __name__ == "__main__":
     # comparisons without shipping the full dataset).
     hist = lab.to_frame()
     hist["avg_intensity"] = df["avg_intensity"]
-    hist_path = Path(__file__).resolve().parents[1] / "artifacts" / "mef_history.parquet"
+    hist_path = config.ARTIFACTS / "mef_history.parquet"
     hist.to_parquet(hist_path)
     print(f"saved -> {hist_path} ({hist_path.stat().st_size//1024} KB)")

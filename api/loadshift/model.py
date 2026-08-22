@@ -8,16 +8,12 @@ ending at t-24).
 from __future__ import annotations
 
 import json
-from pathlib import Path
 
 import lightgbm as lgb
-import numpy as np
 import pandas as pd
 
 from . import baseline, config
 from .weather import WEATHER_COLS
-
-ARTIFACTS = Path(__file__).resolve().parents[1] / "artifacts"
 
 CAL_COLS = ["hour_sin", "hour_cos", "dow", "month", "is_weekend"]
 LAG_COLS = ["mef_lag24", "mef_lag168", "demand_lag24", "demand_lag168", "mef_roll24"]
@@ -63,8 +59,8 @@ def train(df: pd.DataFrame, mef: pd.Series, holdout_days: int = 60) -> dict:
     ss_res = float(((pred - te["target"]) ** 2).sum())
     ss_tot = float(((te["target"] - te["target"].mean()) ** 2).sum())
 
-    ARTIFACTS.mkdir(exist_ok=True)
-    model.booster_.save_model(ARTIFACTS / "model.txt")
+    config.ARTIFACTS.mkdir(exist_ok=True)
+    model.booster_.save_model(config.ARTIFACTS / "model.txt")
     card = {
         "target": "marginal carbon intensity (gCO2eq/kWh), 24h-ahead",
         "algorithm": "LightGBM gradient-boosted decision trees",
@@ -84,12 +80,12 @@ def train(df: pd.DataFrame, mef: pd.Series, holdout_days: int = 60) -> dict:
         "emission_factors_gco2_kwh": config.EMISSION_FACTORS,
         "best_iteration": int(model.best_iteration_ or model.n_estimators),
     }
-    (ARTIFACTS / "model_card.json").write_text(json.dumps(card, indent=1))
+    (config.ARTIFACTS / "model_card.json").write_text(json.dumps(card, indent=1))
     return card
 
 
 def load_booster() -> lgb.Booster:
-    return lgb.Booster(model_file=str(ARTIFACTS / "model.txt"))
+    return lgb.Booster(model_file=str(config.ARTIFACTS / "model.txt"))
 
 
 def predict(booster: lgb.Booster, features: pd.DataFrame) -> pd.Series:
