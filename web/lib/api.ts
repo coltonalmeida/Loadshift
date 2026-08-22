@@ -70,7 +70,7 @@ export interface GreenButtonResult {
   cost_ulo: number;
   saved_tou: number;
   rates_effective: string;
-  ai_report: AiReport | null;
+  ai_available: boolean;
   sample?: boolean;
 }
 
@@ -122,13 +122,32 @@ export async function postSchedule(body: {
   return r.json();
 }
 
+/** A user's own key rides along only on the two insight calls. */
+const keyHeader = (key?: string): Record<string, string> =>
+  key ? { "X-Gemini-Key": key } : {};
+
+/** Generated separately from the stats so the numbers never wait on it. */
+export async function fetchAiReport(
+  stats: GreenButtonResult,
+  key?: string
+): Promise<AiReport> {
+  const r = await fetch(`${BASE}/api/insights/report`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...keyHeader(key) },
+    body: JSON.stringify({ stats }),
+  });
+  if (!r.ok) throw new Error("report unavailable");
+  return r.json();
+}
+
 export async function askInsights(
   question: string,
-  stats: GreenButtonResult
+  stats: GreenButtonResult,
+  key?: string
 ): Promise<string> {
   const r = await fetch(`${BASE}/api/insights/ask`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...keyHeader(key) },
     body: JSON.stringify({ question, stats }),
   });
   if (!r.ok) throw new Error("insights unavailable");

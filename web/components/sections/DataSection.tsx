@@ -1,5 +1,5 @@
 "use client";
-import { useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   Bar,
   BarChart,
@@ -9,12 +9,15 @@ import {
   YAxis,
 } from "recharts";
 import {
+  AiReport,
   askInsights,
+  fetchAiReport,
   fetchSample,
   GreenButtonResult,
   hourLabel,
   uploadGreenButton,
 } from "@/lib/api";
+import { useGeminiKey } from "@/lib/geminiKey";
 import { fmtKm, treeSeedlings } from "@/lib/impact";
 
 function MonthTooltip({
@@ -73,12 +76,19 @@ export default function DataSection() {
   const [question, setQuestion] = useState("");
   const [answer, setAnswer] = useState<string | null>(null);
   const [asking, setAsking] = useState(false);
+  const [report, setReport] = useState<AiReport | null>(null);
+  const [reportState, setReportState] = useState<"idle" | "loading" | "failed">("idle");
+  const [apiKey, setApiKey] = useGeminiKey();
+  const [keyDraft, setKeyDraft] = useState("");
+  const [keyOpen, setKeyOpen] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
   async function withBusy(fn: () => Promise<GreenButtonResult>) {
     setBusy(true);
     setError(null);
     setAnswer(null);
+    setReport(null);
+    setReportState("idle");
     try {
       setResult(await fn());
     } catch (e) {
@@ -88,17 +98,46 @@ export default function DataSection() {
     }
   }
 
+  /** The report is generated on its own request so the numbers above never
+   *  wait on a ~20s model call. */
+  const loadReport = useCallback(
+    async (stats: GreenButtonResult, key: string) => {
+      if (!stats.ai_available && !key) {
+        setReportState("failed");
+        return;
+      }
+      setReportState("loading");
+      try {
+        setReport(await fetchAiReport(stats, key || undefined));
+        setReportState("idle");
+      } catch {
+        setReport(null);
+        setReportState("failed");
+      }
+    },
+    []
+  );
+
+  useEffect(() => {
+    if (result) loadReport(result, apiKey);
+  }, [result, apiKey, loadReport]);
+
   async function ask() {
     if (!result || !question.trim() || asking) return;
     setAsking(true);
     setAnswer(null);
     try {
-      setAnswer(await askInsights(question.trim(), result));
+      setAnswer(await askInsights(question.trim(), result, apiKey || undefined));
     } catch {
       setAnswer("Insights are unavailable right now. The numbers above still stand.");
     } finally {
       setAsking(false);
     }
+  }
+
+  function saveKey() {
+    setApiKey(keyDraft);
+    setKeyDraft("");
   }
 
   const timingPct = result ? Math.round(Math.abs(result.timing_score - 1) * 100) : 0;
@@ -260,58 +299,127 @@ export default function DataSection() {
             </div>
           </div>
 
-          {/* AI report */}
-          {result.ai_report && (
-            <div className="rounded-xl border border-spruce/30 bg-surface p-6">
-              <div className="mb-3 flex items-center justify-between gap-2">
-                <h3 className="text-sm font-medium text-ink">Your energy report</h3>
-                <span className="mono rounded-full border border-line px-2.5 py-0.5 text-[10px] text-ink-3">
-                  AI-generated · Gemini
-                </span>
-              </div>
-              <p className="max-w-[72ch] text-sm leading-relaxed text-ink-2">
-                {result.ai_report.summary}
-              </p>
-              <ol className="mt-4 space-y-2">
-                {result.ai_report.recommendations.map((r, i) => (
-                  <li key={i} className="flex gap-3 text-sm leading-relaxed text-ink-2">
-                    <span className="mono text-spruce-deep">{i + 1}.</span>
-                    <span>{r}</span>
-                  </li>
-                ))}
-              </ol>
-
-              {/* follow-up */}
-              <div className="mt-5 border-t border-line pt-4">
-                <label htmlFor="ask" className="text-xs text-ink-3">
-                  Ask a follow-up about your data
-                </label>
-                <div className="mt-2 flex gap-2">
-                  <input
-                    id="ask"
-                    value={question}
-                    onChange={(e) => setQuestion(e.target.value)}
-                    onKeyDown={(e) => e.key === "Enter" && ask()}
-                    placeholder="Why is my evening usage a problem?"
-                    maxLength={300}
-                    className="w-full max-w-md rounded-md border border-line bg-ground px-3 py-2 text-sm text-ink outline-none placeholder:text-ink-3 focus:border-spruce"
-                  />
-                  <button
-                    onClick={ask}
-                    disabled={asking || !question.trim()}
-                    className="rounded-md bg-ink px-4 py-2 text-sm text-surface transition-transform active:scale-[0.98] disabled:opacity-40"
-                  >
-                    {asking ? "Thinking…" : "Ask"}
-                  </button>
-                </div>
-                {answer && (
-                  <p className="mt-3 max-w-[72ch] rounded-md bg-ground p-3 text-sm leading-relaxed text-ink-2">
-                    {answer}
-                  </p>
-                )}
-              </div>
+          {/* AI report: its own request, so it fills in behind the numbers */}
+          <div className="rounded-xl border border-spruce/30 bg-surface p-6">
+            <div className="mb-3 flex items-center justify-between gap-2">
+              <h3 className="text-sm font-medium text-ink">Your energy report</h3>
+              <span className="mono rounded-full border border-line px-2.5 py-0.5 text-[10px] text-ink-3">
+                AI-generated · Gemini
+              </span>
             </div>
-          )}
+
+            {reportState === "loading" && (
+              <div className="space-y-2" aria-live="polite">
+                <p className="text-sm text-ink-3">Writing your report…</p>
+                <div className="h-3 w-full max-w-[60ch] animate-pulse rounded bg-surface-2" />
+                <div className="h-3 w-full max-w-[52ch] animate-pulse rounded bg-surface-2" />
+                <div className="h-3 w-full max-w-[38ch] animate-pulse rounded bg-surface-2" />
+              </div>
+            )}
+
+            {reportState === "failed" && (
+              <p className="max-w-[72ch] text-sm leading-relaxed text-ink-2">
+                The report is unavailable right now; the shared quota may be
+                spent. Every number above is computed on our own server and
+                stands without it. Add your own Gemini key below to generate one.
+              </p>
+            )}
+
+            {reportState === "idle" && report && (
+              <>
+                <p className="max-w-[72ch] text-sm leading-relaxed text-ink-2">
+                  {report.summary}
+                </p>
+                <ol className="mt-4 space-y-2">
+                  {report.recommendations.map((r, i) => (
+                    <li key={i} className="flex gap-3 text-sm leading-relaxed text-ink-2">
+                      <span className="mono text-spruce-deep">{i + 1}.</span>
+                      <span>{r}</span>
+                    </li>
+                  ))}
+                </ol>
+              </>
+            )}
+
+            {/* follow-up: stands on its own, even if the report failed */}
+            <div className="mt-5 border-t border-line pt-4">
+              <label htmlFor="ask" className="text-xs text-ink-3">
+                Ask a follow-up about your data
+              </label>
+              <div className="mt-2 flex gap-2">
+                <input
+                  id="ask"
+                  value={question}
+                  onChange={(e) => setQuestion(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && ask()}
+                  placeholder="Why is my evening usage a problem?"
+                  maxLength={300}
+                  className="w-full max-w-md rounded-md border border-line bg-ground px-3 py-2 text-sm text-ink outline-none placeholder:text-ink-3 focus:border-spruce"
+                />
+                <button
+                  onClick={ask}
+                  disabled={asking || !question.trim()}
+                  className="rounded-md bg-ink px-4 py-2 text-sm text-surface transition-transform active:scale-[0.98] disabled:opacity-40"
+                >
+                  {asking ? "Thinking…" : "Ask"}
+                </button>
+              </div>
+              {answer && (
+                <p className="mt-3 max-w-[72ch] whitespace-pre-line rounded-md bg-ground p-3 text-sm leading-relaxed text-ink-2">
+                  {answer}
+                </p>
+              )}
+            </div>
+
+            {/* bring your own key */}
+            <div className="mt-4 border-t border-line pt-4">
+              <button
+                onClick={() => setKeyOpen(!keyOpen)}
+                className="text-xs text-ink-3 underline-offset-2 hover:text-ink-2 hover:underline"
+              >
+                {apiKey
+                  ? "Using your own Gemini API key"
+                  : "Use your own Gemini API key"}
+              </button>
+              {keyOpen && (
+                <div className="mt-3">
+                  <div className="flex flex-wrap gap-2">
+                    <input
+                      type="password"
+                      value={keyDraft}
+                      onChange={(e) => setKeyDraft(e.target.value)}
+                      onKeyDown={(e) => e.key === "Enter" && saveKey()}
+                      placeholder={apiKey ? "Saved. Paste a new key to replace it." : "Paste your key"}
+                      autoComplete="off"
+                      spellCheck={false}
+                      className="w-full max-w-md rounded-md border border-line bg-ground px-3 py-2 text-sm text-ink outline-none placeholder:text-ink-3 focus:border-spruce"
+                    />
+                    <button
+                      onClick={saveKey}
+                      disabled={!keyDraft.trim()}
+                      className="rounded-md bg-ink px-4 py-2 text-sm text-surface transition-transform active:scale-[0.98] disabled:opacity-40"
+                    >
+                      Save
+                    </button>
+                    {apiKey && (
+                      <button
+                        onClick={() => setApiKey("")}
+                        className="rounded-md border border-line px-4 py-2 text-sm text-ink-2 transition-colors hover:border-ink-3"
+                      >
+                        Clear
+                      </button>
+                    )}
+                  </div>
+                  <p className="mt-2 max-w-[72ch] text-[11px] leading-relaxed text-ink-3">
+                    Kept in this browser only. It rides along with your report and
+                    follow-up requests so they run on your quota, and is never
+                    written to our server or its logs. A free key takes a minute at
+                    aistudio.google.com/apikey.
+                  </p>
+                </div>
+              )}
+            </div>
+          </div>
 
           <p className="max-w-[78ch] text-xs leading-relaxed text-ink-3">
             {result.sample ? "This is a synthetic sample household. " : ""}

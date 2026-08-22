@@ -78,3 +78,12 @@ have you find them.
     from our computed statistics only, are labelled as AI-generated in the UI,
     and disappear gracefully when the API is unavailable. They are guidance,
     not billing or engineering advice.
+18. **Reports are cached by the statistics they describe.** Two analyses that
+    reduce to the same numbers reuse one generated report, so the bundled
+    sample costs a single model call per server process rather than one per
+    visitor. Nothing about a request is written to disk.
+19. **You may supply your own Gemini key.** It is kept in your browser, sent
+    with your report and follow-up requests so they run on your quota, and is
+    never stored or logged on our server. The shared key lives only in the
+    server environment and is never exposed to the browser. The stats we
+    generate from are computed on our own server either way.

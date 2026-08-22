@@ -8,7 +8,7 @@ from xml.etree.ElementTree import ParseError as ET_ParseError
 
 import pandas as pd
 from apscheduler.schedulers.background import BackgroundScheduler
-from fastapi import FastAPI, File, HTTPException, UploadFile
+from fastapi import FastAPI, File, Header, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
@@ -47,6 +47,20 @@ def _payload() -> dict:
     if not p:
         raise HTTPException(503, "forecast cache warming up — try again in a minute")
     return p
+
+
+# The insight endpoints take the stats back from the client, so bound them: a
+# prompt is built from this and we pay for every token of it.
+MAX_STATS_BYTES = 20_000
+
+
+def _check_stats(stats: dict) -> None:
+    try:
+        blob = json.dumps(stats, default=str)
+    except (TypeError, ValueError) as e:
+        raise HTTPException(422, "stats must be JSON-serializable") from e
+    if len(blob) > MAX_STATS_BYTES:
+        raise HTTPException(422, "stats payload too large")
 
 
 @app.get("/api/health")
@@ -164,14 +178,28 @@ async def greenbutton_upload(file: UploadFile = File(...)):
         stats = greenbutton.analyze(greenbutton.parse(data))
     except (ValueError, ET_ParseError) as e:
         raise HTTPException(422, f"could not analyze file: {e}") from e
-    return {**stats, "ai_report": insights.report(stats)}
+    # No AI call here: generation takes ~20s and the numbers must not wait on it.
+    return {**stats, "ai_available": insights.available()}
 
 
 @app.get("/api/greenbutton/sample")
 def greenbutton_sample():
     kwh = greenbutton.parse(greenbutton.SAMPLE_PATH.read_bytes())
     stats = greenbutton.analyze(kwh)
-    return {**stats, "sample": True, "ai_report": insights.report(stats)}
+    return {**stats, "sample": True, "ai_available": insights.available()}
+
+
+class StatsReq(BaseModel):
+    stats: dict
+
+
+@app.post("/api/insights/report")
+def insights_report(req: StatsReq, x_gemini_key: str | None = Header(default=None)):
+    _check_stats(req.stats)
+    rep = insights.report(req.stats, user_key=x_gemini_key)
+    if rep is None:
+        raise HTTPException(503, "insights are unavailable right now")
+    return rep
 
 
 class AskReq(BaseModel):
@@ -180,11 +208,12 @@ class AskReq(BaseModel):
 
 
 @app.post("/api/insights/ask")
-def insights_ask(req: AskReq):
+def insights_ask(req: AskReq, x_gemini_key: str | None = Header(default=None)):
     q = req.question.strip()
     if not q or len(q) > 300:
         raise HTTPException(422, "question must be 1-300 characters")
-    answer = insights.ask(q, req.stats)
+    _check_stats(req.stats)
+    answer = insights.ask(q, req.stats, user_key=x_gemini_key)
     if answer is None:
         raise HTTPException(503, "insights are unavailable right now")
     return {"answer": answer.strip(), "model": insights.MODEL}
