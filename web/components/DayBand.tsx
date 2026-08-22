@@ -47,7 +47,7 @@ export default function DayBand({ hours, wake, bed, markers = [], size = "lg" }:
         </div>
       )}
 
-      <div className="flex gap-px overflow-hidden rounded-lg">
+      <div className="day-band-cells flex gap-px overflow-hidden rounded-lg">
         {hours.map((h) => {
           const localH = torontoHourNum(h.ts);
           const asleep = hasSleep && !isAwake(localH, wake!, bed!);

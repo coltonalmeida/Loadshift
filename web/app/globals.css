@@ -119,3 +119,14 @@ body {
     transition: none !important;
   }
 }
+
+/* The day band's hour separators are the page showing through a 1px flex gap.
+   Below one device pixel per CSS pixel -- browser zoom under 100% on a 1x
+   display -- Chrome snaps that gap to nothing and neighbouring hours of
+   similar colour merge into one block. Widen it only in that case; at 1dppx
+   and above the hairline is correct and is left alone. */
+@media (max-resolution: 0.99dppx) {
+  .day-band-cells {
+    gap: 2px;
+  }
+}
