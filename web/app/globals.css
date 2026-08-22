@@ -36,6 +36,12 @@
   --font-mono: var(--font-spline-mono);
 }
 
+@media (prefers-reduced-motion: no-preference) {
+  html {
+    scroll-behavior: smooth;
+  }
+}
+
 body {
   background: var(--ground);
   color: var(--ink);

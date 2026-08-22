@@ -3,14 +3,12 @@ import { useCallback, useEffect, useState } from "react";
 import DayBand from "@/components/DayBand";
 import WakeBedPicker from "@/components/WakeBedPicker";
 import {
-  fetchForecast,
   Forecast,
   postSchedule,
   ScheduleResult,
   ScheduleWindow,
   torontoTime,
 } from "@/lib/api";
-import { useWakeBed } from "@/lib/prefs";
 
 const APPLIANCES = [
   { key: "dryer", label: "Dryer", duration: 1 },
@@ -25,17 +23,21 @@ function gramsLine(w: ScheduleWindow, kwhRange: [number, number]) {
   return exact ? `about ${lo} g CO₂ saved per run` : `${lo} to ${hi} g CO₂ saved per run`;
 }
 
-export default function SchedulePage() {
+export default function ScheduleSection({
+  fc,
+  wake,
+  bed,
+  setWakeBed,
+}: {
+  fc: Forecast | null;
+  wake: number;
+  bed: number;
+  setWakeBed: (w: number, b: number) => void;
+}) {
   const [appliance, setAppliance] = useState("dryer");
   const [watts, setWatts] = useState("");
-  const [wake, bed, setWakeBed] = useWakeBed();
   const [result, setResult] = useState<ScheduleResult | null>(null);
-  const [fc, setFc] = useState<Forecast | null>(null);
   const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    fetchForecast().then(setFc).catch(() => {});
-  }, []);
 
   const run = useCallback(
     async (key: string, w: string, wk: number, bd: number) => {
@@ -71,18 +73,18 @@ export default function SchedulePage() {
   if (overall && !sameAnswer) markers.push({ ts: overall.best_start, label: "overall" });
 
   return (
-    <main className="mx-auto max-w-5xl px-5 pb-20">
-      <section className="pt-12">
-        <h1 className="display text-3xl font-bold tracking-tight text-ink sm:text-4xl">
+    <div>
+      <div>
+        <h2 className="display text-3xl font-bold tracking-tight text-ink sm:text-4xl">
           When should it run?
-        </h1>
+        </h2>
         <p className="mt-2 max-w-[52ch] text-ink-2">
           Pick a load and tell us your hours. We find the cleanest start time in
           the next 24 hours.
         </p>
-      </section>
+      </div>
 
-      <section className="mt-8 grid gap-8 lg:grid-cols-[1fr_1.3fr]">
+      <div className="mt-8 grid gap-8 lg:grid-cols-[1fr_1.3fr]">
         {/* controls */}
         <div className="space-y-6">
           <div>
@@ -175,14 +177,14 @@ export default function SchedulePage() {
             </div>
           </div>
         )}
-      </section>
+      </div>
 
       {fc && (
-        <section className="mt-10">
-          <h2 className="mb-3 text-sm font-medium text-ink">On the day</h2>
+        <div className="mt-10">
+          <h3 className="mb-3 text-sm font-medium text-ink">On the day</h3>
           <DayBand hours={fc.hours} wake={wake} bed={bed} markers={markers} size="lg" />
-        </section>
+        </div>
       )}
-    </main>
+    </div>
   );
 }

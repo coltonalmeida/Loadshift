@@ -2,7 +2,7 @@
 import { useEffect, useState } from "react";
 import { fetchModelCard, ModelCard } from "@/lib/api";
 
-export default function MethodPage() {
+export default function MethodSection() {
   const [card, setCard] = useState<ModelCard | null>(null);
 
   useEffect(() => {
@@ -10,11 +10,11 @@ export default function MethodPage() {
   }, []);
 
   return (
-    <main className="mx-auto max-w-5xl px-5 pb-20">
-      <section className="pt-12">
-        <h1 className="display text-3xl font-bold tracking-tight text-ink sm:text-4xl">
+    <div>
+      <div>
+        <h2 className="display text-3xl font-bold tracking-tight text-ink sm:text-4xl">
           How we get these numbers
-        </h1>
+        </h2>
         <p className="mt-3 max-w-[62ch] leading-relaxed text-ink-2">
           Average intensity tells you what the whole grid emitted. Marginal
           intensity tells you what turned on because of one more kilowatt hour.
@@ -22,10 +22,10 @@ export default function MethodPage() {
           runs far above the average, and it swings within a day. We measure it,
           then forecast it.
         </p>
-      </section>
+      </div>
 
       {card && (
-        <section className="mt-8 grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <div className="mt-8 grid grid-cols-2 gap-3 lg:grid-cols-4">
           {[
             { label: "Forecast error", value: `${card.mae_model} g`, sub: "MAE, 60-day holdout" },
             { label: "Naive baseline", value: `${card.mae_baseline_seasonal_naive_168h} g`, sub: "same hour last week" },
@@ -42,14 +42,14 @@ export default function MethodPage() {
               <div className="mt-0.5 text-[11px] text-ink-3">{s.sub}</div>
             </div>
           ))}
-        </section>
+        </div>
       )}
 
-      <section className="mt-10 grid gap-8 lg:grid-cols-2">
+      <div className="mt-10 grid gap-8 lg:grid-cols-2">
         <div className="space-y-4 text-sm leading-relaxed text-ink-2">
-          <h2 className="display text-xl font-bold tracking-tight text-ink">
+          <h3 className="display text-xl font-bold tracking-tight text-ink">
             Measuring the margin
-          </h2>
+          </h3>
           <p>
             For every hour when Ontario demand rose, we ask which fuels rose
             with it. A regression of each fuel&rsquo;s ramp against the demand
@@ -75,9 +75,9 @@ export default function MethodPage() {
         <div className="space-y-4">
           {card && (
             <div className="rounded-xl border border-line bg-surface p-5">
-              <h2 className="mb-3 text-sm font-medium text-ink">
+              <h3 className="mb-3 text-sm font-medium text-ink">
                 Lifecycle emission factors (IPCC AR5), g CO₂eq/kWh
-              </h2>
+              </h3>
               <div className="grid grid-cols-3 gap-x-4 gap-y-2">
                 {Object.entries(card.emission_factors_gco2_kwh)
                   .sort((a, b) => b[1] - a[1])
@@ -108,7 +108,7 @@ export default function MethodPage() {
             </div>
           )}
         </div>
-      </section>
-    </main>
+      </div>
+    </div>
   );
 }

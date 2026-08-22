@@ -28,7 +28,7 @@ function MonthTooltip({
   );
 }
 
-export default function DataPage() {
+export default function DataSection() {
   const [result, setResult] = useState<GreenButtonResult | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -47,11 +47,11 @@ export default function DataPage() {
   }
 
   return (
-    <main className="mx-auto max-w-5xl px-5 pb-20">
-      <section className="pt-12">
-        <h1 className="display text-3xl font-bold tracking-tight text-ink sm:text-4xl">
+    <div>
+      <div>
+        <h2 className="display text-3xl font-bold tracking-tight text-ink sm:text-4xl">
           What your meter knows
-        </h1>
+        </h2>
         <p className="mt-2 max-w-[58ch] leading-relaxed text-ink-2">
           Every Ontario utility must give you your smart-meter history as a
           Green Button file (O. Reg. 633/21). Upload yours and see what shifting
@@ -85,10 +85,10 @@ export default function DataPage() {
           />
         </div>
         {error && <p className="mt-4 text-sm text-amber">{error}</p>}
-      </section>
+      </div>
 
       {result && (
-        <section className="mt-10 space-y-6">
+        <div className="mt-10 space-y-6">
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
             {[
               { label: "Actual emissions", value: `${result.actual_kg} kg` },
@@ -109,9 +109,9 @@ export default function DataPage() {
           </div>
 
           <div className="rounded-xl border border-line bg-surface p-5">
-            <h2 className="mb-4 text-sm font-medium text-ink">
+            <h3 className="mb-4 text-sm font-medium text-ink">
               Monthly emissions, weighted by marginal intensity
-            </h2>
+            </h3>
             <div className="h-[200px]">
               <ResponsiveContainer>
                 <BarChart
@@ -143,8 +143,8 @@ export default function DataPage() {
             Assumes {result.assumption}. Period {result.period[0]} to{" "}
             {result.period[1]}, {result.total_kwh.toLocaleString()} kWh total.
           </p>
-        </section>
+        </div>
       )}
-    </main>
+    </div>
   );
 }
