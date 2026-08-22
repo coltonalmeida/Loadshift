@@ -130,10 +130,14 @@ that same request returned 503 until a background rebuild finished.
 
 ## Preview environments
 
-`previews.generation: automatic` clones the entire stack — API, cron job, Key
-Value, frontend — for every pull request, expiring after three days. A preview
-identifies itself: `IS_PULL_REQUEST` reaches `/api/platform`, and the footer
-shows a "preview environment" badge.
+Not enabled. Render gates them on a Pro *workspace* subscription — which is a
+separate thing from the Starter *instance type* each service runs on — and this
+workspace is on Hobby.
+
+The application side is already in place: `IS_PULL_REQUEST` is read and reported
+by `/api/platform`, and the footer strip renders a "preview environment" badge
+when it is true. Enabling them is adding a `previews` block back to
+`render.yaml`; nothing in the code needs to change.
 
 ## Local development
 
