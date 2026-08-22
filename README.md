@@ -3,6 +3,8 @@
 **Your dryer doesn't emit the grid average. It emits whatever turned on because
 of it.**
 
+**Live: https://loadshift-web.onrender.com/**
+
 Ontario's grid averages a very clean ~100 gCO₂eq/kWh — mostly nuclear and hydro.
 But nuclear runs flat regardless of demand. Add one more kWh of load and the
 plant that ramps to serve it is almost always natural gas at ~490 g. The
@@ -94,7 +96,7 @@ cd api
 ../.venv/Scripts/python -m uvicorn loadshift.main:app --port 8000
 
 # frontend
-cd web && npm install && npm run dev                # NEXT_PUBLIC_API_BASE=http://localhost:8000
+cd web && npm install && npm run dev                # talks to localhost:8000 by default
 ```
 
 Tests: `cd api && ../.venv/Scripts/python -m pytest tests/ -q`
