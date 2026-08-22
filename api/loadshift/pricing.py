@@ -27,10 +27,20 @@ RATES_EFFECTIVE = "2025-11-01"
 GOOD_FRIDAY = {2024: (3, 29), 2025: (4, 18), 2026: (4, 3), 2027: (3, 26)}
 
 
+MONDAY = 0
+
+
 def _nth_weekday(year: int, month: int, weekday: int, n: int) -> dt.date:
+    """The nth `weekday` of a month, e.g. the 3rd Monday of February."""
     d = dt.date(year, month, 1)
     offset = (weekday - d.weekday()) % 7
     return d + dt.timedelta(days=offset + 7 * (n - 1))
+
+
+def _victoria_day(year: int) -> dt.date:
+    """The Monday on or before May 24."""
+    d = dt.date(year, 5, 24)
+    return d - dt.timedelta(days=d.weekday())
 
 
 def is_holiday(d: dt.date) -> bool:
@@ -41,14 +51,11 @@ def is_holiday(d: dt.date) -> bool:
     if y in GOOD_FRIDAY and (d.month, d.day) == GOOD_FRIDAY[y]:
         return True
     holidays = {
-        _nth_weekday(y, 2, 0, 3),                       # Family Day
-        max(dt.date(y, 5, 18) + dt.timedelta(days=(0 - dt.date(y, 5, 18).weekday()) % 7)
-            - dt.timedelta(days=7) if dt.date(y, 5, 24).weekday() == 0 else
-            dt.date(y, 5, 25) - dt.timedelta(days=(dt.date(y, 5, 25).weekday() + 7 - 0) % 7 or 7),
-            dt.date(y, 5, 1)),                          # Victoria Day (Mon before May 25)
-        _nth_weekday(y, 8, 0, 1),                       # Civic Holiday
-        _nth_weekday(y, 9, 0, 1),                       # Labour Day
-        _nth_weekday(y, 10, 0, 2),                      # Thanksgiving
+        _nth_weekday(y, 2, MONDAY, 3),   # Family Day
+        _victoria_day(y),                # Victoria Day
+        _nth_weekday(y, 8, MONDAY, 1),   # Civic Holiday
+        _nth_weekday(y, 9, MONDAY, 1),   # Labour Day
+        _nth_weekday(y, 10, MONDAY, 2),  # Thanksgiving
     }
     return d in holidays
 
