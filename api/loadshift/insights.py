@@ -13,9 +13,9 @@ from collections import deque
 
 import requests
 
-MODEL = "gemini-2.5-flash"
+MODEL = "gemini-3.6-flash"
 URL = f"https://generativelanguage.googleapis.com/v1beta/models/{MODEL}:generateContent"
-TIMEOUT_S = 12
+TIMEOUT_S = 25
 
 # Light global rate limit so a demo page can't burn the free tier.
 _calls: deque[float] = deque(maxlen=30)
@@ -35,9 +35,13 @@ def _generate(prompt: str, json_mode: bool) -> str | None:
     key = os.environ.get("GEMINI_API_KEY")
     if not key or not _allowed():
         return None
-    body: dict = {"contents": [{"parts": [{"text": prompt}]}]}
+    body: dict = {
+        "contents": [{"parts": [{"text": prompt}]}],
+        # low thinking budget: these are small grounded summaries, speed matters
+        "generationConfig": {"thinkingConfig": {"thinkingBudget": 128}},
+    }
     if json_mode:
-        body["generationConfig"] = {"response_mime_type": "application/json"}
+        body["generationConfig"]["response_mime_type"] = "application/json"
     try:
         r = requests.post(URL, params={"key": key}, json=body, timeout=TIMEOUT_S)
         r.raise_for_status()
