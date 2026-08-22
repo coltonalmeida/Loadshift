@@ -16,21 +16,22 @@ export default function MethodSection() {
           How we get these numbers
         </h2>
         <p className="mt-3 max-w-[62ch] leading-relaxed text-ink-2">
-          Average intensity tells you what the whole grid emitted. Marginal
-          intensity tells you what turned on because of one more kilowatt hour.
-          In Ontario that is usually a natural gas plant, so the marginal number
-          runs far above the average, and it swings within a day. We measure it,
-          then forecast it.
+          Average intensity tells you what the whole grid emitted overall.
+          Marginal intensity tells you which power plant had to ramp up extra
+          output to supply the next kilowatt-hour of demand across the system.
+          In Ontario that extra power usually comes from a natural gas plant, so
+          the marginal number runs far above the average, and it swings within a
+          day. We measure it, then forecast it.
         </p>
       </div>
 
       {card && (
         <div className="mt-8 grid grid-cols-2 gap-3 lg:grid-cols-4">
           {[
-            { label: "Forecast error", value: `${card.mae_model} g`, sub: "MAE, 60-day holdout" },
-            { label: "Naive baseline", value: `${card.mae_baseline_seasonal_naive_168h} g`, sub: "same hour last week" },
-            { label: "Improvement", value: `${card.improvement_pct}%`, sub: "over the baseline", accent: true },
-            { label: "Test R²", value: `${card.test_r2}`, sub: "chronological split" },
+            { label: "Forecast error", value: `${card.mae_model} g`, sub: "Average grams of CO₂ our model was off by" },
+            { label: "Naive baseline", value: `${card.mae_baseline_seasonal_naive_168h} g`, sub: "Error if we just guessed using last week\u2019s data" },
+            { label: "Improvement", value: `${card.improvement_pct}%`, sub: "Accuracy gained compared to the simple guess", accent: true },
+            { label: "Test R²", value: `${card.test_r2}`, sub: "Overall model accuracy score" },
           ].map((s) => (
             <div key={s.label} className="rounded-xl border border-line bg-surface p-5">
               <div className="text-xs font-medium uppercase tracking-wide text-ink-3">
@@ -85,9 +86,13 @@ export default function MethodSection() {
         <div className="space-y-4">
           {card && (
             <div className="rounded-xl border border-line bg-surface p-5">
-              <h3 className="mb-3 text-sm font-medium text-ink">
+              <h3 className="mb-1 text-sm font-medium text-ink">
                 Lifecycle emission factors (IPCC AR5), g CO₂eq/kWh
               </h3>
+              <p className="mb-3 text-[11px] leading-relaxed text-ink-3">
+                How much carbon pollution each energy source creates over its
+                entire lifetime to generate one kilowatt-hour of electricity.
+              </p>
               <div className="grid grid-cols-3 gap-x-4 gap-y-2">
                 {Object.entries(card.emission_factors_gco2_kwh)
                   .sort((a, b) => b[1] - a[1])
@@ -104,10 +109,11 @@ export default function MethodSection() {
           {card && (
             <div className="rounded-xl border border-amber/30 bg-surface p-5 text-sm leading-relaxed text-ink-2">
               <span className="font-medium text-amber">Known limitation:</span>{" "}
-              only about {Math.round(card.mef_method.mean_sum_slope * 100)}% of a
-              marginal Ontario kilowatt hour is explained by the fuels we model.
-              The rest flows through interties whose emissions we do not
-              observe. Every other simplification is listed in{" "}
+              Our model covers about{" "}
+              {Math.round(card.mef_method.mean_sum_slope * 100)}% of
+              Ontario&rsquo;s extra power demand. The rest is imported from
+              neighbouring power grids outside the province where emissions
+              aren&rsquo;t tracked. All other details are in{" "}
               <a
                 className="underline decoration-line underline-offset-2 hover:text-ink"
                 href="https://github.com/coltonalmeida/Loadshift/blob/main/ASSUMPTIONS.md"
