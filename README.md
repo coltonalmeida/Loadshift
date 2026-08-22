@@ -5,6 +5,7 @@ names the cleanest hour to run a deferrable load, a dryer, a washing machine, a 
 charger.
 
 **Live: https://loadshift-web.onrender.com/**
+- Works on all devices
 
 Built for Ignition Hacks V.7, Environmental track.
 
