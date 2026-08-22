@@ -9,6 +9,7 @@ import {
   ScheduleWindow,
   torontoTime,
 } from "@/lib/api";
+import { fmtKm, kmDriven } from "@/lib/impact";
 
 const APPLIANCES = [
   { key: "dryer", label: "Dryer", duration: 1 },
@@ -21,6 +22,26 @@ function gramsLine(w: ScheduleWindow, kwhRange: [number, number]) {
   const [lo, hi] = w.g_saved_range;
   const exact = kwhRange[0] === kwhRange[1];
   return exact ? `about ${lo} g CO₂ saved per run` : `${lo} to ${hi} g CO₂ saved per run`;
+}
+
+const dollars = (cents: number) => `$${(cents / 100).toFixed(2)}`;
+
+function MoneyLines({ w }: { w: ScheduleWindow }) {
+  const midKg = (w.g_saved_range[0] + w.g_saved_range[1]) / 2000;
+  const uloWins = w.cost_best_ulo_cents < w.cost_best_cents * 0.75;
+  return (
+    <>
+      <p className="mono mt-1.5 text-sm text-ink-2">
+        {dollars(w.cost_best_cents)} at this hour vs {dollars(w.cost_worst_cents)} at the
+        worst · saves {dollars(w.cents_saved)} a run
+      </p>
+      <p className="mt-1.5 text-xs leading-relaxed text-ink-3">
+        The CO₂ saved is like skipping {fmtKm(midKg)} of driving.
+        {uloWins &&
+          ` On the Ultra-Low Overnight rate plan this run would cost ${dollars(w.cost_best_ulo_cents)}.`}
+      </p>
+    </>
+  );
 }
 
 export default function ScheduleSection({
@@ -147,6 +168,7 @@ export default function ScheduleSection({
                 {constrained.pct_saving}% less CO₂ than the worst hour ·{" "}
                 {gramsLine(constrained, result!.kwh_range)}
               </p>
+              <MoneyLines w={constrained} />
             </div>
 
             <div className="rounded-xl border border-line bg-surface p-6">
@@ -169,6 +191,7 @@ export default function ScheduleSection({
                   <p className="mono mt-2 text-sm text-ink-2">
                     {overall.pct_saving}% less CO₂ · {gramsLine(overall, result!.kwh_range)}
                   </p>
+                  <MoneyLines w={overall} />
                   <p className="mt-2 text-xs leading-relaxed text-ink-3">
                     A delay-start timer gets you this one: set it before bed.
                   </p>

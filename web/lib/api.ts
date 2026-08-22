@@ -31,6 +31,10 @@ export interface ScheduleWindow {
   worst_gco2_kwh: number;
   pct_saving: number;
   g_saved_range: [number, number];
+  cost_best_cents: number;
+  cost_worst_cents: number;
+  cents_saved: number;
+  cost_best_ulo_cents: number;
 }
 
 export interface ScheduleResult {
@@ -42,6 +46,12 @@ export interface ScheduleResult {
   stale: boolean;
 }
 
+export interface AiReport {
+  summary: string;
+  recommendations: string[];
+  model: string;
+}
+
 export interface GreenButtonResult {
   period: [string, string];
   total_kwh: number;
@@ -51,6 +61,16 @@ export interface GreenButtonResult {
   pct_saving: number;
   assumption: string;
   monthly: { month: string; kwh: number; kg: number }[];
+  usage_by_hour: number[];
+  evening_peak_share: number;
+  overnight_share: number;
+  timing_score: number;
+  worst_days: { date: string; kg: number }[];
+  cost_tou: number;
+  cost_ulo: number;
+  saved_tou: number;
+  rates_effective: string;
+  ai_report: AiReport | null;
   sample?: boolean;
 }
 
@@ -100,6 +120,20 @@ export async function postSchedule(body: {
   });
   if (!r.ok) throw new Error(`schedule: ${r.status}`);
   return r.json();
+}
+
+export async function askInsights(
+  question: string,
+  stats: GreenButtonResult
+): Promise<string> {
+  const r = await fetch(`${BASE}/api/insights/ask`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ question, stats }),
+  });
+  if (!r.ok) throw new Error("insights unavailable");
+  const d = await r.json();
+  return d.answer as string;
 }
 
 export async function uploadGreenButton(file: File): Promise<GreenButtonResult> {

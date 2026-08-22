@@ -67,6 +67,10 @@ def train(df: pd.DataFrame, mef: pd.Series, holdout_days: int = 60) -> dict:
     model.booster_.save_model(ARTIFACTS / "model.txt")
     card = {
         "target": "marginal carbon intensity (gCO2eq/kWh), 24h-ahead",
+        "algorithm": "LightGBM gradient-boosted decision trees",
+        "training_data": "hourly IESO generation + demand joined with "
+                         "Open-Meteo weather, 2024-01-01 onward (~2.6 years)",
+        "n_features": len(FEATURES),
         "model": "LightGBM, direct single-model, all lags >= 24h (causal)",
         "features": FEATURES,
         "train_rows": len(tr),

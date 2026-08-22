@@ -60,10 +60,20 @@ export default function MethodSection() {
             Technology</em> 46(9).
           </p>
           <p>
-            The forecast is a gradient-boosted model over calendar features,
-            forecast weather, and day-old lags, so every input is genuinely
-            available 24 hours ahead. It is judged against an honest baseline:
-            &ldquo;same hour last week.&rdquo;
+            The forecast is machine learning end to end: LightGBM
+            gradient-boosted decision trees trained on roughly 23,000 hours
+            (2.6 years) of IESO grid history, using 14 features across
+            calendar, forecast weather, and day-old lags, so every input is
+            genuinely available 24 hours ahead. It is validated on a
+            chronological 60-day holdout against an honest baseline,
+            &ldquo;same hour last week,&rdquo; and beats it by 42%.
+          </p>
+          <p>
+            Dollar figures use the OEB regulated Time-of-Use and Ultra-Low
+            Overnight rate schedules effective November 2025, applied hour by
+            hour to the same windows the carbon optimizer picks. In Ontario the
+            cheap hours and the clean hours largely coincide overnight, which
+            is why one shift pays twice.
           </p>
           <p>
             As a sanity check, our independently computed average intensity

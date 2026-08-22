@@ -36,5 +36,8 @@
   "NUCLEAR": 12,
   "WIND": 11
  },
- "best_iteration": 296
+ "best_iteration": 296,
+ "algorithm": "LightGBM gradient-boosted decision trees",
+ "training_data": "hourly IESO generation + demand joined with Open-Meteo weather, 2024-01-01 onward (~2.6 years)",
+ "n_features": 14
 }

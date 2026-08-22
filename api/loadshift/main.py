@@ -12,7 +12,7 @@ from fastapi import FastAPI, File, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
-from . import cache, config, greenbutton, model, optimize
+from . import cache, config, greenbutton, insights, model, optimize, pricing
 
 
 @asynccontextmanager
@@ -95,6 +95,10 @@ def schedule(req: ScheduleReq):
 
     def window_payload(res: dict) -> dict:
         lo, hi = optimize.grams_saved(res, kwh_range)
+        kwh_mid = sum(kwh_range) / 2
+        cost_best = pricing.window_cost_cents(kwh_mid, res["best_start"], duration)
+        cost_worst = pricing.window_cost_cents(kwh_mid, res["worst_start"], duration)
+        cost_best_ulo = pricing.window_cost_cents(kwh_mid, res["best_start"], duration, "ulo")
         return {
             "best_start": res["best_start"].isoformat() + "Z",
             "best_gco2_kwh": res["best_gco2_kwh"],
@@ -102,6 +106,10 @@ def schedule(req: ScheduleReq):
             "worst_gco2_kwh": res["worst_gco2_kwh"],
             "pct_saving": res["pct_saving"],
             "g_saved_range": [lo, hi],
+            "cost_best_cents": cost_best,
+            "cost_worst_cents": cost_worst,
+            "cents_saved": round(cost_worst - cost_best, 1),
+            "cost_best_ulo_cents": cost_best_ulo,
         }
 
     try:
@@ -143,15 +151,33 @@ def schedule(req: ScheduleReq):
 async def greenbutton_upload(file: UploadFile = File(...)):
     data = await file.read()
     try:
-        return greenbutton.analyze(greenbutton.parse(data))
+        stats = greenbutton.analyze(greenbutton.parse(data))
     except (ValueError, ET_ParseError) as e:
         raise HTTPException(422, f"could not analyze file: {e}") from e
+    return {**stats, "ai_report": insights.report(stats)}
 
 
 @app.get("/api/greenbutton/sample")
 def greenbutton_sample():
     kwh = greenbutton.parse(greenbutton.SAMPLE_PATH.read_bytes())
-    return {**greenbutton.analyze(kwh), "sample": True}
+    stats = greenbutton.analyze(kwh)
+    return {**stats, "sample": True, "ai_report": insights.report(stats)}
+
+
+class AskReq(BaseModel):
+    question: str
+    stats: dict
+
+
+@app.post("/api/insights/ask")
+def insights_ask(req: AskReq):
+    q = req.question.strip()
+    if not q or len(q) > 300:
+        raise HTTPException(422, "question must be 1-300 characters")
+    answer = insights.ask(q, req.stats)
+    if answer is None:
+        raise HTTPException(503, "insights are unavailable right now")
+    return {"answer": answer.strip(), "model": insights.MODEL}
 
 
 @app.get("/api/model-card")

@@ -38,3 +38,25 @@ def test_dataset_hourly_and_dense():
     steps = df.index.to_series().diff().dropna()
     assert (steps == pd.Timedelta(hours=1)).all()
     assert df[["net_demand", "avg_intensity"]].notna().all().all()
+
+
+def test_pricing_tou_windows():
+    from loadshift import pricing
+    # Thu 2026-08-20 (summer weekday): 13:00 local = 17:00 UTC -> on-peak
+    assert pricing.rate_cents(pd.Timestamp("2026-08-20 17:00")) == 20.3
+    # 20:00 local -> off-peak
+    assert pricing.rate_cents(pd.Timestamp("2026-08-21 00:00")) == 9.8
+    # Sat all day off-peak
+    assert pricing.rate_cents(pd.Timestamp("2026-08-22 16:00")) == 9.8
+    # Canada Day (Wed 2026-07-01) noon -> holiday off-peak
+    assert pricing.rate_cents(pd.Timestamp("2026-07-01 16:00")) == 9.8
+    # Winter weekday 08:00 local -> on-peak
+    assert pricing.rate_cents(pd.Timestamp("2026-01-15 13:00")) == 20.3
+
+
+def test_pricing_ulo():
+    from loadshift import pricing
+    # 02:00 local any day -> ultra-low
+    assert pricing.rate_cents(pd.Timestamp("2026-08-20 06:00"), "ulo") == 3.9
+    # weekday 18:00 local -> ULO on-peak
+    assert pricing.rate_cents(pd.Timestamp("2026-08-20 22:00"), "ulo") == 39.1
