@@ -1,0 +1,9 @@
+services:
+  - type: web
+    name: loadshift-api
+    runtime: python
+    rootDir: api
+    plan: starter          # free tier sleeps after 15 min — judges must never wait
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn loadshift.main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /api/health

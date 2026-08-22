@@ -37,3 +37,11 @@ if __name__ == "__main__":
     print(f"labelled history: mean {lab.mean():.1f} g, p5 {lab.quantile(.05):.1f}, "
           f"p95 {lab.quantile(.95):.1f}")
     print(f"saved -> {path}")
+
+    # Compact hourly MEF history artifact (Render needs it for Green Button
+    # comparisons without shipping the full dataset).
+    hist = lab.to_frame()
+    hist["avg_intensity"] = df["avg_intensity"]
+    hist_path = Path(__file__).resolve().parents[1] / "artifacts" / "mef_history.parquet"
+    hist.to_parquet(hist_path)
+    print(f"saved -> {hist_path} ({hist_path.stat().st_size//1024} KB)")
