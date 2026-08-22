@@ -25,3 +25,8 @@ PLAN.md
 CLAUDE.md
 Ignition-Hacks-V7-Hacker-Package.pdf
 SUBMISSION.txt
+docs/demo_script.*
+
+# Local editor and tooling config
+.claude/
+.mcp.json
