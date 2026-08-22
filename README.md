@@ -8,8 +8,6 @@ charger.
 
 Built for Ignition Hacks V.7, Environmental track.
 
-![The live view: marginal intensity beside the average, and the next 24 hours as a colour-scaled band](docs/now.png)
-
 Assumptions and limitations are stated in [ASSUMPTIONS.md](ASSUMPTIONS.md), 27
 of them, including the largest: intertie flows are unmodelled, so the fuel-slope
 regression explains about 78% of a marginal Ontario kWh.
@@ -167,8 +165,10 @@ forecast rebuild: the cron job publishes to Key Value each hour and the web
 service only reads it, so "never run the model on a request path" holds because
 of the topology, the web service does not import LightGBM at all.
 
-[DEPLOY.md](DEPLOY.md) covers why the split exists, how each failure mode
-degrades, and first-time setup.
+Every failure mode degrades rather than erroring. If IESO or the weather API is
+down, the previous forecast is served and flagged `stale`, with the time it was
+built. If Key Value is unreachable, each service falls back to its in-process
+path and `/api/health` says so.
 
 ## Data sources
 
