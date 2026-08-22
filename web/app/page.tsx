@@ -133,17 +133,6 @@ export default function Home() {
         </section>
       )}
 
-      <footer className="mt-16 border-t border-line pt-6 text-xs leading-relaxed text-ink-3">
-        Live data from IESO Public Reports and Open-Meteo. Emission factors from
-        IPCC AR5. Built at Ignition Hacks V.7.{" "}
-        <a
-          className="underline decoration-line underline-offset-2 hover:text-ink-2"
-          href="https://github.com/coltonalmeida/Loadshift"
-        >
-          Source and assumptions
-        </a>
-        .
-      </footer>
     </main>
   );
 }
