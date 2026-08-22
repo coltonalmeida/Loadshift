@@ -3,7 +3,6 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import DayBand from "@/components/DayBand";
 import LiveBadge from "@/components/LiveBadge";
-import PlatformStrip from "@/components/PlatformStrip";
 import DataSection from "@/components/sections/DataSection";
 import MethodSection from "@/components/sections/MethodSection";
 import ScheduleSection from "@/components/sections/ScheduleSection";
@@ -151,8 +150,6 @@ export default function Home() {
       <section id="method" className="mt-16 scroll-mt-20 border-t border-line pt-14">
         <MethodSection />
       </section>
-
-      <PlatformStrip />
     </main>
   );
 }
