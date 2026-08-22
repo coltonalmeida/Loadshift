@@ -61,8 +61,12 @@ def _build_payload() -> dict:
     now = pd.Timestamp.utcnow().floor("h").tz_localize(None)
     future_idx = pd.date_range(now + pd.Timedelta(hours=1), periods=24, freq="h")
 
-    # Weather forecast covers the future index (fetched in UTC).
-    wx = weather.forecast(days=3).reindex(future_idx)
+    # Weather covering the future index (fetched in UTC). Falls back to a
+    # stored snapshot rather than failing the whole rebuild; the source rides
+    # along on the payload so a degraded forecast is never passed off as live.
+    wx = weather.aligned(future_idx, days=3)
+    wx_source = wx.attrs.get("source", "live")
+    wx_age_h = round(float(wx.attrs.get("age_h", 0.0)), 1)
 
     fut = pd.DataFrame(index=future_idx)
     for c in weather.WEATHER_COLS:
@@ -107,7 +111,11 @@ def _build_payload() -> dict:
     ]
     return {
         "generated_at": pd.Timestamp.utcnow().tz_localize(None).isoformat() + "Z",
-        "stale": False,
+        # Fallback weather means the marginal numbers are a degraded estimate,
+        # which is exactly what stale already tells the UI to say.
+        "stale": wx_source != "live",
+        "weather_source": wx_source,
+        "weather_age_h": wx_age_h,
         "now": {
             "ts": recent.index[-1].isoformat() + "Z",
             "marginal_gco2_kwh": round(float(recent_mef.iloc[-1]), 1),

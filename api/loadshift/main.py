@@ -115,6 +115,10 @@ def health():
         "artifacts_loaded": (model.ARTIFACTS / "model.txt").exists(),
         "cache_age_s": round(age) if age is not None else None,
         "stale": p["stale"] if p else None,
+        # Which weather a served forecast was actually built from: a payload
+        # standing on a stored snapshot should be visible without guessing.
+        "weather_source": p.get("weather_source") if p else None,
+        "weather_age_h": p.get("weather_age_h") if p else None,
         **cache.diagnostics(),
     }
 
