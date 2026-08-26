@@ -150,6 +150,11 @@ export default function Home() {
       <section id="method" className="mt-16 scroll-mt-20 border-t border-line pt-14">
         <MethodSection />
       </section>
+
+      {/* ── Footer ──────────────────────────────────────────── */}
+      <footer className="mt-16 border-t border-line pt-8">
+        <p className="text-sm text-ink-3">Colton Almeida</p>
+      </footer>
     </main>
   );
 }
