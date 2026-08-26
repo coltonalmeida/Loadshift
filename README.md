@@ -1,4 +1,5 @@
 # Loadshift
+### Ignition Hacks v7 (2026) Winner: 1st Overall, Best Solo Hack, 2nd Best Use of Render
 
 Loadshift forecasts Ontario's **marginal** carbon intensity 24 hours ahead and
 names the cleanest hour to run a deferrable load, a dryer, a washing machine, a dishwasher, or even an EV
