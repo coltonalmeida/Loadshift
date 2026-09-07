@@ -17,6 +17,11 @@
 # an hour by ordinary deploys. They live in loadshift-cache now.
 #
 # Blueprint file must be at the repo ROOT to be discovered.
+#
+# The four resources sit under the Loadshift project on Render.
+# This file stays flat on purpose: root-level resources keep their assigned
+# environment across every sync, so restructuring it under `projects:` /
+# `environments:` would buy nothing and risk sync churn.
 
 envVarGroups:
   - name: loadshift-shared
